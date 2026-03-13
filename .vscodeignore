@@ -1,0 +1,15 @@
+.vscode/**
+.vscode-test/**
+src/**
+.gitignore
+pnpm-lock.yaml
+.yarnrc
+.yarnrc.yml
+.yarn/**
+**/tsconfig.json
+eslint.config.mjs
+**/.eslintrc*
+**/*.map
+node_modules/**
+.git/**
+.github/**
