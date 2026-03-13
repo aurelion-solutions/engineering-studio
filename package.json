@@ -1,0 +1,224 @@
+{
+  "name": "aurelion-engineering-studio",
+  "displayName": "Aurelion Engineering Studio",
+  "description": "Aurelion tools and integrations for VS Code.",
+  "version": "0.1.0",
+  "publisher": "aurelion",
+  "license": "Apache-2.0",
+  "icon": "media/logo.svg",
+  "galleryBanner": {
+    "color": "#0f172a",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "aurelion",
+    "engineering",
+    "integrations"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aurelion-engineering-studio",
+          "title": "Aurelion",
+          "icon": "media/logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "aurelion-engineering-studio": [
+        {
+          "id": "aurelion.engineeringStudio.applicationsView",
+          "name": "Applications",
+          "icon": "$(plug)",
+          "contextualTitle": "Aurelion"
+        },
+        {
+          "id": "aurelion.engineeringStudio.inventoryView",
+          "name": "Inventory",
+          "icon": "$(person)",
+          "contextualTitle": "Aurelion"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "aurelion.engineeringStudio.applicationsView",
+        "contents": "No applications loaded.\n[Refresh applications](command:aurelion.refreshApplications)\n\nIf the kernel is unreachable, check `aurelion.engineeringStudio.apiBaseUrl` in Settings."
+      },
+      {
+        "view": "aurelion.engineeringStudio.inventoryView",
+        "contents": "Inventory slices appear here as they are implemented."
+      }
+    ],
+    "commands": [
+      {
+        "command": "aurelion.refreshApplications",
+        "title": "Aurelion: Refresh applications",
+        "icon": "$(refresh)",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.refreshApplication",
+        "title": "Aurelion: Refresh this application",
+        "icon": "$(refresh)",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.openLogs",
+        "title": "Aurelion: Show logs for application…",
+        "icon": "$(output)",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.toggleLogStreaming",
+        "title": "Aurelion: Toggle log streaming for application",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.focusApplicationsView",
+        "title": "Aurelion: Reveal applications view",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.refreshInventory",
+        "title": "Aurelion: Refresh inventory",
+        "icon": "$(refresh)",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.focusInventoryView",
+        "title": "Aurelion: Reveal inventory view",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.refreshInventoryCategory",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.copyInstanceId",
+        "title": "Copy Connector Instance Id",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.focusApplication",
+        "title": "Focus Application…",
+        "category": "Aurelion"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "aurelion.refreshApplications",
+          "when": "view == aurelion.engineeringStudio.applicationsView",
+          "group": "navigation"
+        },
+        {
+          "command": "aurelion.refreshInventory",
+          "when": "view == aurelion.engineeringStudio.inventoryView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "aurelion.focusApplication",
+          "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.application",
+          "group": "1_navigation@1"
+        },
+        {
+          "command": "aurelion.openLogs",
+          "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.application",
+          "group": "2_open@1"
+        },
+        {
+          "command": "aurelion.toggleLogStreaming",
+          "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.application",
+          "group": "2_open@2"
+        },
+        {
+          "command": "aurelion.refreshApplication",
+          "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.application",
+          "group": "9_refresh@1"
+        },
+        {
+          "command": "aurelion.copyInstanceId",
+          "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.connectorInstance",
+          "group": "9_cutcopypaste@1"
+        },
+        {
+          "command": "aurelion.refreshInventoryCategory",
+          "when": "view == aurelion.engineeringStudio.inventoryView && viewItem == aurelion.inventoryCategory",
+          "group": "9_refresh@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "aurelion.refreshApplication",
+          "when": "false"
+        },
+        {
+          "command": "aurelion.copyInstanceId",
+          "when": "false"
+        },
+        {
+          "command": "aurelion.refreshInventoryCategory",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Aurelion Engineering Studio",
+      "properties": {
+        "aurelion.engineeringStudio.apiBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "Base URL for the Aurelion Platform API (same as VITE_API_BASE_URL in aurelion-gui)."
+        },
+        "aurelion.engineeringStudio.logStreamPollMs": {
+          "type": "number",
+          "default": 2500,
+          "minimum": 500,
+          "description": "Polling interval in milliseconds for the log stream. Minimum 500ms."
+        },
+        "aurelion.engineeringStudio.refreshIntervalMs": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Auto-refresh interval in milliseconds for the Applications tree. 0 disables auto-refresh (manual only). Minimum effective value is 5000ms — smaller positive values are clamped up."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "node --disable-warning=DEP0040 ./node_modules/eslint/bin/eslint.js src",
+    "package": "node --disable-warning=DEP0040 ./node_modules/@vscode/vsce/vsce package",
+    "pretest": "pnpm run compile",
+    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\""
+  },
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.6.0",
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.58.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aurelion/aurelion-engineering-studio.git"
+  }
+}
