@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+package-lock.json
+npm-shrinkwrap.json
+
+# Build
+out/
+dist/
+*.tsbuildinfo
+
+# VS Code extension packaging
+*.vsix
+
+# Logs & caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# OS & editors
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Environment & secrets (if you add scripts later)
+.env
+.env.*
+!.env.example
+
+# Test / coverage (if you add tests)
+coverage/
+.nyc_output/
