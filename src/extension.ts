@@ -1,16 +1,18 @@
 import * as vscode from "vscode";
 import { ApplicationsTreeDataProvider } from "./integrations/applications/tree";
-import { InventoryTreeDataProvider, CategoryNode } from "./integrations/inventory/tree";
+import { InventoryTreeDataProvider } from "./integrations/inventory/tree";
 import { StatusBarController } from "./integrations/statusBar/controller";
 import { LogDocumentContentProvider } from "./integrations/logs/contentProvider";
 import { LOGS_SCHEME } from "./integrations/logs/uri";
 import { LogStreamer } from "./integrations/logs/streamer";
 import {
-  isConnectorNode,
   isAppNode,
   isOpenLogsArg,
-  isRefreshInventoryCategoryArg,
+  isOpenDetailPanelArg,
 } from "./integrations/commands/guards";
+import { DetailPanelController } from "./panels/DetailPanelController";
+import { EventsTreeDataProvider } from "./integrations/events/tree";
+import { LogsLevelsTreeDataProvider } from "./integrations/logsLevels/tree";
 
 export function activate(context: vscode.ExtensionContext): void {
   // ─── Extension-level log channel ─────────────────────────────────────────────
@@ -20,6 +22,19 @@ export function activate(context: vscode.ExtensionContext): void {
     { log: true },
   );
   context.subscriptions.push(extensionChannel);
+
+  // ─── Detail panel controller ─────────────────────────────────────────────────
+  const detailPanels = new DetailPanelController({
+    extensionChannel,
+    refreshSecondsProvider: () =>
+      Math.max(
+        2,
+        vscode.workspace
+          .getConfiguration("aurelion.engineeringStudio")
+          .get<number>("eventsRefreshSeconds", 5),
+      ),
+  });
+  context.subscriptions.push(detailPanels);
 
   // ─── Applications tree ───────────────────────────────────────────────────────
   const applicationsProvider = new ApplicationsTreeDataProvider(extensionChannel);
@@ -41,19 +56,35 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(inventoryTreeView);
   context.subscriptions.push(inventoryProvider);
 
+  // ─── Events tree ─────────────────────────────────────────────────────────────
+  const eventsProvider = new EventsTreeDataProvider();
+  context.subscriptions.push(
+    vscode.window.createTreeView("aurelion.engineeringStudio.eventsView", {
+      treeDataProvider: eventsProvider,
+    }),
+  );
+  context.subscriptions.push(eventsProvider);
+
+  // ─── Logs levels tree ─────────────────────────────────────────────────────────
+  const logsLevelsProvider = new LogsLevelsTreeDataProvider();
+  context.subscriptions.push(
+    vscode.window.createTreeView("aurelion.engineeringStudio.logsView", {
+      treeDataProvider: logsLevelsProvider,
+    }),
+  );
+  context.subscriptions.push(logsLevelsProvider);
+
   // ─── Status bar ──────────────────────────────────────────────────────────────
   const statusBar = new StatusBarController({
     onClickCommand: "aurelion.focusApplicationsView",
   });
   context.subscriptions.push(statusBar);
 
-  // Update status bar whenever provider state changes (after refresh or per-app refresh)
+  // Update status bar whenever provider state changes
   context.subscriptions.push(
     applicationsProvider.onDidChangeState(() => {
-      const s = applicationsProvider.getConnectorSummary();
       statusBar.update({
-        online: s.online,
-        total: s.total,
+        total: applicationsProvider.getAppCount(),
         unreachable: applicationsProvider.lastRefreshFailed,
       });
     }),
@@ -77,6 +108,29 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(streamer);
 
   // ─── Commands ────────────────────────────────────────────────────────────────
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.openDetailPanel", (arg: unknown) => {
+      if (!isOpenDetailPanelArg(arg)) {
+        extensionChannel.warn("openDetailPanel: invalid argument");
+        return;
+      }
+      detailPanels.openOrReveal(arg);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.refreshEvents", () => {
+      eventsProvider.refresh();
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.refreshLogs", () => {
+      logsLevelsProvider.refresh();
+    }),
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand("aurelion.refreshApplications", () => {
       void applicationsProvider.refresh();
@@ -95,22 +149,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("aurelion.refreshInventory", () => {
       inventoryProvider.refresh();
     }),
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "aurelion.refreshInventoryCategory",
-      (node: unknown) => {
-        if (node instanceof CategoryNode) {
-          inventoryProvider.refreshCategory(node);
-        } else if (isRefreshInventoryCategoryArg(node)) {
-          const categoryNode = inventoryProvider.getCategoryNode(node.categoryKey);
-          if (categoryNode) {
-            inventoryProvider.refreshCategory(categoryNode);
-          }
-        }
-      },
-    ),
   );
 
   context.subscriptions.push(
@@ -137,10 +175,8 @@ export function activate(context: vscode.ExtensionContext): void {
         let target: { appId: string; appName: string } | undefined;
 
         if (isOpenLogsArg(arg)) {
-          // Tree-click branch: argument already carries appId + appName
           target = { appId: arg.appId, appName: arg.appName };
         } else {
-          // Palette branch: quick-pick
           const apps = applicationsProvider.getAppNodesForQuickPick();
 
           if (apps.length === 0) {
@@ -165,7 +201,6 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
 
-          // G4: re-validate appId after await — the tree may have refreshed
           const currentApps = applicationsProvider.getAppNodesForQuickPick();
           const stillValid = currentApps.some((a) => a.id === picked.appId);
           if (!stillValid) {
@@ -189,34 +224,6 @@ export function activate(context: vscode.ExtensionContext): void {
           preserveFocus: false,
         });
         streamer.enable({ id: target.appId, name: target.appName });
-      },
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "aurelion.copyInstanceId",
-      async (arg: unknown): Promise<void> => {
-        if (!isConnectorNode(arg)) {
-          extensionChannel.warn("copyInstanceId: unexpected argument");
-          return;
-        }
-        try {
-          await vscode.env.clipboard.writeText(arg.instanceId);
-        } catch (err) {
-          extensionChannel.error(
-            "copyInstanceId: clipboard write failed",
-            String(err),
-          );
-          void vscode.window.showErrorMessage(
-            "Aurelion: failed to copy instance id",
-          );
-          return;
-        }
-        vscode.window.setStatusBarMessage(
-          "$(check) Aurelion: instance id copied",
-          1500,
-        );
       },
     ),
   );
@@ -249,7 +256,6 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        // Palette branch
         const apps = applicationsProvider.getAppNodesForQuickPick();
         if (apps.length === 0) {
           void vscode.window.showInformationMessage(
@@ -309,7 +315,6 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      // G4: re-validate appId after await — the tree may have refreshed
       const currentApps = applicationsProvider.getAppNodesForQuickPick();
       const stillValid = currentApps.some((a) => a.id === picked.appId);
       if (!stillValid) {
@@ -336,14 +341,11 @@ export function activate(context: vscode.ExtensionContext): void {
   // ─── Config change listener ───────────────────────────────────────────────────
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      // C-4: apiBaseUrl branch FIRST — it recreates the HTTP client and triggers
-      // refresh(); refreshIntervalMs branch must come after so any new auto-tick
-      // fires against the already-updated client, not the old one.
       if (e.affectsConfiguration("aurelion.engineeringStudio.apiBaseUrl")) {
         void applicationsProvider.refresh();
-        // G8: reset cursors + restart tick when kernel URL changes
         streamer.resetAllNewestTs();
         streamer.restartTick();
+        detailPanels.refreshAll();
       }
       if (
         e.affectsConfiguration(
@@ -362,13 +364,18 @@ export function activate(context: vscode.ExtensionContext): void {
           .get<number>("refreshIntervalMs", 0);
         applicationsProvider.setAutoRefreshIntervalMs(v);
       }
+      if (
+        e.affectsConfiguration(
+          "aurelion.engineeringStudio.eventsRefreshSeconds",
+        )
+      ) {
+        detailPanels.restartAllTimers();
+      }
     }),
   );
 
   void applicationsProvider.refresh();
 
-  // S6: set auto-refresh AFTER first refresh() is fired, so the first fetch
-  // completes before any periodic tick starts.
   const initialInterval = vscode.workspace
     .getConfiguration("aurelion.engineeringStudio")
     .get<number>("refreshIntervalMs", 0);

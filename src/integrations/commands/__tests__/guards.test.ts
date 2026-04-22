@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isConnectorNode, isAppNode } from "../guards";
+import { isConnectorNode, isAppNode, isOpenDetailPanelArg } from "../guards";
 
 describe("isConnectorNode", () => {
   it("returns true for valid connector node", () => {
@@ -97,6 +97,50 @@ describe("isAppNode", () => {
     assert.strictEqual(
       isAppNode({ kind: "app", appId: "x", instanceId: "y" }),
       true,
+    );
+  });
+});
+
+describe("isOpenDetailPanelArg", () => {
+  it("returns true for valid application arg", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({ kind: "application", ctxKey: "app-1", appId: "app-1", appName: "Billing" }),
+      true,
+    );
+  });
+
+  it("returns true for valid inventory arg", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({ kind: "inventory", ctxKey: "customers", categoryKey: "customers", label: "Customers" }),
+      true,
+    );
+  });
+
+  it("returns true for valid events arg", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({ kind: "events", ctxKey: "inventory", domain: "inventory" }),
+      true,
+    );
+  });
+
+  it("returns true for valid logs arg", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({ kind: "logs", ctxKey: "error", minLevel: "error" }),
+      true,
+    );
+  });
+
+  it("returns false for bad kind", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({ kind: "unknown", ctxKey: "x" }),
+      false,
+    );
+  });
+
+  it("returns false for missing ctxKey", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({ kind: "events", domain: "platform" }),
+      false,
     );
   });
 });
