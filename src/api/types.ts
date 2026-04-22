@@ -60,6 +60,37 @@ export type LogBufferEvent = {
   created_at: string;
 };
 
+/** GET /api/v0/platform/events */
+export type PlatformEventEntry = {
+  event_id: string;
+  event_type: string;
+  occurred_at: string;
+  correlation_id: string;
+  causation_id: string | null;
+  payload: Record<string, unknown>;
+  initiator_kind: string | null;
+  initiator_id: string | null;
+  actor_kind: string | null;
+  actor_id: string | null;
+  target_kind: string | null;
+  target_id: string | null;
+  schema_version: string;
+};
+
+/** GET /api/v0/platform/logs */
+export type PlatformLogEntry = {
+  id: string;
+  event_id: string;
+  event_type: string | null;
+  timestamp: string;
+  level: string;
+  message: string;
+  component: string;
+  correlation_id: string;
+  causation_id: string | null;
+  payload: Record<string, unknown>;
+};
+
 // ─── Inventory: Customer ────────────────────────────────────────────────────
 
 /** Allowed tenant roles for a customer. */
@@ -413,6 +444,52 @@ export type ThreatFactUpsertPayload = {
   last_login_at?: string | null;
   failed_auth_count?: number;
   observed_at?: string | null;
+};
+
+// ─── Inventory: Person ──────────────────────────────────────────────────────
+
+/** GET /api/v0/persons / GET /api/v0/persons/{id} */
+export type PersonFromApi = {
+  id: string;
+  external_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+// ─── Inventory: Employee ────────────────────────────────────────────────────
+
+/** GET /api/v0/employees / GET /api/v0/employees/{id} */
+export type EmployeeFromApi = {
+  id: string;
+  external_id: string;
+  person_id: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+// ─── Inventory: NHI ─────────────────────────────────────────────────────────
+
+/** GET /api/v0/nhi / GET /api/v0/nhi/{id} */
+export type NHIFromApi = {
+  id: string;
+  external_id: string;
+  nhi_kind: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+// ─── Inventory: EmployeeRecord ───────────────────────────────────────────────
+
+/** GET /api/v0/employee-records / GET /api/v0/employee-records/{id} */
+export type EmployeeRecordFromApi = {
+  id: string;
+  external_id: string;
+  employee_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 // --- Inventory: AccessFact ---

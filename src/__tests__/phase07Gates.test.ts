@@ -48,6 +48,10 @@ function lines(file: string): string[] {
 }
 
 // ─── Gate (a) — No webview residue ───────────────────────────────────────────
+//
+// WebviewPanel usage is intentionally contained in src/panels/ (DetailPanelController,
+// panelHtml.ts) and src/extension.ts. The gate prevents accidental webview
+// leakage into integrations and other slices.
 
 describe("Gate (a): no webview residue", () => {
   // Literals are stored split so this gate file does not trigger itself.
@@ -61,8 +65,19 @@ describe("Gate (a): no webview residue", () => {
     "media/" + "webview",
   ];
 
-  it("src/ (excluding __tests__) has no webview residue", () => {
-    const files = tsFiles(SRC);
+  // Files/directories that legitimately use webview APIs.
+  const ALLOWED_DIRS = [path.join(SRC, "panels")];
+  const ALLOWED_FILES = [path.join(SRC, "extension.ts")];
+
+  function isAllowed(file: string): boolean {
+    return (
+      ALLOWED_DIRS.some((d) => file.startsWith(d)) ||
+      ALLOWED_FILES.includes(file)
+    );
+  }
+
+  it("src/ (excluding __tests__ and panels/) has no webview residue", () => {
+    const files = tsFiles(SRC).filter((f) => !isAllowed(f));
     const violations: string[] = [];
     for (const file of files) {
       const content = fs.readFileSync(file, "utf8");
