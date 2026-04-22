@@ -45,6 +45,18 @@
           "name": "Inventory",
           "icon": "$(person)",
           "contextualTitle": "Aurelion"
+        },
+        {
+          "id": "aurelion.engineeringStudio.eventsView",
+          "name": "Events",
+          "icon": "$(pulse)",
+          "contextualTitle": "Aurelion"
+        },
+        {
+          "id": "aurelion.engineeringStudio.logsView",
+          "name": "Logs",
+          "icon": "$(output)",
+          "contextualTitle": "Aurelion"
         }
       ]
     },
@@ -56,9 +68,22 @@
       {
         "view": "aurelion.engineeringStudio.inventoryView",
         "contents": "Inventory slices appear here as they are implemented."
+      },
+      {
+        "view": "aurelion.engineeringStudio.eventsView",
+        "contents": "Click a domain to open details."
+      },
+      {
+        "view": "aurelion.engineeringStudio.logsView",
+        "contents": "Click a level to open the log feed."
       }
     ],
     "commands": [
+      {
+        "command": "aurelion.openDetailPanel",
+        "title": "Aurelion: Open detail panel",
+        "category": "Aurelion"
+      },
       {
         "command": "aurelion.refreshApplications",
         "title": "Aurelion: Refresh applications",
@@ -99,14 +124,15 @@
         "category": "Aurelion"
       },
       {
-        "command": "aurelion.refreshInventoryCategory",
-        "title": "Refresh",
+        "command": "aurelion.refreshEvents",
+        "title": "Aurelion: Refresh events tree",
         "icon": "$(refresh)",
         "category": "Aurelion"
       },
       {
-        "command": "aurelion.copyInstanceId",
-        "title": "Copy Connector Instance Id",
+        "command": "aurelion.refreshLogs",
+        "title": "Aurelion: Refresh logs tree",
+        "icon": "$(refresh)",
         "category": "Aurelion"
       },
       {
@@ -125,6 +151,16 @@
         {
           "command": "aurelion.refreshInventory",
           "when": "view == aurelion.engineeringStudio.inventoryView",
+          "group": "navigation"
+        },
+        {
+          "command": "aurelion.refreshEvents",
+          "when": "view == aurelion.engineeringStudio.eventsView",
+          "group": "navigation"
+        },
+        {
+          "command": "aurelion.refreshLogs",
+          "when": "view == aurelion.engineeringStudio.logsView",
           "group": "navigation"
         }
       ],
@@ -148,29 +184,15 @@
           "command": "aurelion.refreshApplication",
           "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.application",
           "group": "9_refresh@1"
-        },
-        {
-          "command": "aurelion.copyInstanceId",
-          "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.connectorInstance",
-          "group": "9_cutcopypaste@1"
-        },
-        {
-          "command": "aurelion.refreshInventoryCategory",
-          "when": "view == aurelion.engineeringStudio.inventoryView && viewItem == aurelion.inventoryCategory",
-          "group": "9_refresh@1"
         }
       ],
       "commandPalette": [
         {
+          "command": "aurelion.openDetailPanel",
+          "when": "false"
+        },
+        {
           "command": "aurelion.refreshApplication",
-          "when": "false"
-        },
-        {
-          "command": "aurelion.copyInstanceId",
-          "when": "false"
-        },
-        {
-          "command": "aurelion.refreshInventoryCategory",
           "when": "false"
         }
       ]
@@ -194,6 +216,12 @@
           "default": 0,
           "minimum": 0,
           "description": "Auto-refresh interval in milliseconds for the Applications tree. 0 disables auto-refresh (manual only). Minimum effective value is 5000ms — smaller positive values are clamped up."
+        },
+        "aurelion.engineeringStudio.eventsRefreshSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "description": "Auto-refresh interval (seconds) for detail panels with live data. Minimum 2s. Default 5s. Used by Events, Logs, and Inventory list panels."
         }
       }
     }
@@ -205,7 +233,7 @@
     "lint": "node --disable-warning=DEP0040 ./node_modules/eslint/bin/eslint.js src",
     "package": "node --disable-warning=DEP0040 ./node_modules/@vscode/vsce/vsce package",
     "pretest": "pnpm run compile",
-    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\""
+    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\""
   },
   "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "devDependencies": {

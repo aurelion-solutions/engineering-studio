@@ -46,31 +46,45 @@ export function isAppNode(v: unknown): v is AppNodeLike {
   );
 }
 
-export interface RefreshInventoryCategoryArg {
-  readonly categoryKey: string;
+export interface OpenLogsArg {
+  readonly appId: string;
+  readonly appName: string;
 }
 
+// ─── openDetailPanel guard ────────────────────────────────────────────────────
+
+import type { PanelOpenArgs } from "../../panels/types";
+
 /**
- * Returns true when `v` is a plain `{ categoryKey }` object emitted by
- * `FailedCategoryChildNode.command.arguments` — not a `CategoryNode` instance.
+ * Type-guard for the `aurelion.openDetailPanel` command argument.
  */
-export function isRefreshInventoryCategoryArg(
-  v: unknown,
-): v is RefreshInventoryCategoryArg {
+export function isOpenDetailPanelArg(v: unknown): v is PanelOpenArgs {
   if (typeof v !== "object" || v === null) {
     return false;
   }
   const r = v as Record<string, unknown>;
-  return (
-    typeof r["categoryKey"] === "string" &&
-    r["categoryKey"].length > 0 &&
-    !("kind" in r)
-  );
-}
-
-export interface OpenLogsArg {
-  readonly appId: string;
-  readonly appName: string;
+  if (typeof r["kind"] !== "string") {
+    return false;
+  }
+  if (typeof r["ctxKey"] !== "string" || (r["ctxKey"] as string).length === 0) {
+    return false;
+  }
+  switch (r["kind"]) {
+    case "application":
+      return typeof r["appId"] === "string" && typeof r["appName"] === "string";
+    case "inventory":
+      return typeof r["categoryKey"] === "string" && typeof r["label"] === "string";
+    case "events":
+      return (
+        r["domain"] === "inventory" ||
+        r["domain"] === "capabilities" ||
+        r["domain"] === "platform"
+      );
+    case "logs":
+      return ["debug", "info", "warning", "error"].includes(String(r["minLevel"]));
+    default:
+      return false;
+  }
 }
 
 /**

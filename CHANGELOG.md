@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Changed
+
+- **Engineering Studio — unified tree+panel pattern.** Applications and Inventory views no longer expand children inline; clicking a node opens a `WebviewPanel` with the relevant content on the side. Added two new tree views: `Events` (domain-grouped, auto-refreshing panel) and `Logs` (minimum-level filter, auto-refreshing panel). The earlier Phase 11 Step 5 webview view `eventsLogsView` is replaced by these two tree views and their shared `DetailPanelController`. Inventory tree now covers all 15 inventory slices that expose a list endpoint (added: persons, employees, NHIs, employee records).
+- **Status bar** now shows application count (`N apps`) instead of connector online/offline counters. Connector count in status bar removed — connector details are now visible in the application's WebviewPanel.
+- `aurelion.engineeringStudio.eventsRefreshSeconds` default changed from 10 to 5; description updated to reflect use by all live-data detail panels.
+
+### Added
+
+- `DetailPanelController` — unified WebviewPanel lifecycle management (cap 8 panels, LRU eviction, auto-refresh, CSP + nonce).
+- `panels/panelHtml.ts` — single HTML skeleton for all detail panels.
+- `panels/renderers/` — four pure renderer modules: `applicationRenderer`, `inventoryListRenderer`, `eventsListRenderer`, `logsListRenderer`.
+- `integrations/events/` — `EventsTreeDataProvider` with three static domain nodes (inventory, capabilities, platform) and `classifyEvent` pure classifier.
+- `integrations/logsLevels/` — `LogsLevelsTreeDataProvider` with four static level nodes (debug, info, warning, error).
+- `integrations/logs/levelFilter.ts` — pure `levelsForMinimum` function for client-side log level fan-out.
+- `integrations/inventory/inventoryCategories.ts` — declarative registry for all 15 inventory categories.
+- New API types: `PersonFromApi`, `EmployeeFromApi`, `NHIFromApi`, `EmployeeRecordFromApi`.
+- New platform client fetchers: `fetchApplication`, `fetchPersons`, `fetchEmployees`, `fetchNHIs`, `fetchEmployeeRecords`.
+- Commands: `aurelion.openDetailPanel`, `aurelion.refreshEvents`, `aurelion.refreshLogs`.
+- **Application detail panel — editable fields.** `name`, `is_active`, and `required_connector_tags` are now editable inline via injected inputs. A Save button appears (right-aligned, greyed out when no changes) and posts a `patch` message to the extension host via `updateApplication`. "Saved" confirmation appears briefly left of the button.
+- **Application detail panel — rich connector section.** Connectors rendered as a separate `Section` table with Status (Online/Offline pill badge), Instance ID, Tags, Last Seen, and Created columns.
+- **Logs panel — dual filter bar.** Correlation ID filter (whitespace stripped on input) and Message text filter displayed in a flex row. Time Period (UTC) filter rendered below in a stacked layout (block, not flex). Filters persist across auto-refreshes.
+
+### Removed
+
+- **`eventsLogsView` webview.** Replaced by `eventsView` and `logsView` tree views, each backed by the shared `DetailPanelController`.
+- Inline connector-instance subtree under Applications — connector details now live in the application's WebviewPanel.
+- 11 `integrations/inventory/*Mapper.ts` files and their tests — replaced by renderer-level mapping in `panels/renderers/inventoryListRenderer.ts`.
+- `integrations/statusBar/summary.ts` and its tests — connector summary no longer needed after status bar simplification.
+- Command `aurelion.refreshInventoryCategory` — inventory panels are opened fresh on each click; no separate refresh command needed.
+- Command `aurelion.copyInstanceId` — connector-instance tree nodes no longer exist in the tree; the command had no remaining UI entry point.
+
 ## [0.1.0] - 2026-04-18
 
 ### Added

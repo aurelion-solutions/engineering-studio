@@ -5,7 +5,6 @@ export interface StatusBarControllerOptions {
 }
 
 export interface StatusBarState {
-  readonly online: number;
   readonly total: number;
   readonly unreachable: boolean;
 }
@@ -57,7 +56,7 @@ export class StatusBarController implements vscode.Disposable {
       return;
     }
 
-    const { online, total, unreachable } = state;
+    const { total, unreachable } = state;
 
     if (unreachable) {
       this.item.text = "$(warning) Aurelion kernel unreachable";
@@ -74,16 +73,10 @@ export class StatusBarController implements vscode.Disposable {
       return;
     }
 
-    // Normal state: show connector counts
-    const offline = total - online;
-    this.item.text = `$(plug) ${online}/${total} connectors online`;
+    // Normal state: show app count
+    this.item.text = `$(plug) ${total} app${total === 1 ? "" : "s"}`;
     this.item.backgroundColor = undefined;
-    const md = new vscode.MarkdownString();
-    md.appendMarkdown(
-      `**Aurelion connectors**\n\n- Online: ${online}\n- Offline: ${offline}`,
-    );
-    md.isTrusted = false;
-    this.item.tooltip = md;
+    this.item.tooltip = `${total} application${total === 1 ? "" : "s"} loaded`;
     this.item.show();
   }
 

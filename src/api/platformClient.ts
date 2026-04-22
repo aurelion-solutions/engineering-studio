@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import type {
   AccessArtifactFromApi,
+  PlatformEventEntry,
+  PlatformLogEntry,
   AccessFactFromApi,
   AccessUsageFactCreatePayload,
   AccessUsageFactFromApi,
@@ -21,10 +23,14 @@ import type {
   CustomerFromApi,
   CustomerPatchPayload,
   CustomerPlanTier,
+  EmployeeFromApi,
+  EmployeeRecordFromApi,
   LogBufferEvent,
+  NHIFromApi,
   OwnershipAssignmentCreatePayload,
   OwnershipAssignmentFromApi,
   OwnershipKind,
+  PersonFromApi,
   ResourceAttributeCreatePayload,
   ResourceAttributeFromApi,
   ResourceCreatePayload,
@@ -51,6 +57,7 @@ export function getApiBaseUrl(): string {
     .trim();
   return raw.replace(/\/$/, "");
 }
+
 
 export async function fetchApplications(): Promise<ApplicationFromApi[]> {
   const url = `${getApiBaseUrl()}/api/v0/applications`;
@@ -1037,4 +1044,150 @@ export async function upsertThreatFact(
     );
   }
   return res.json() as Promise<ThreatFactFromApi>;
+}
+
+// ─── Platform observability (Events & Logs panel) ────────────────────────────
+
+export async function fetchPlatformEvents(
+  limit?: number,
+): Promise<PlatformEventEntry[]> {
+  const search = new URLSearchParams();
+  search.set("limit", String(limit ?? 50));
+  const url = `${getApiBaseUrl()}/api/v0/platform/events?${search.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Platform events request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Platform events response is not a JSON array");
+  }
+  return data as PlatformEventEntry[];
+}
+
+// ─── Person client methods ────────────────────────────────────────────────────
+
+export async function fetchPersons(params?: {
+  limit?: number;
+}): Promise<PersonFromApi[]> {
+  const search = new URLSearchParams();
+  if (params?.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  const qs = search.toString() ? `?${search.toString()}` : "";
+  const url = `${getApiBaseUrl()}/api/v0/persons${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Persons request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Persons response is not a JSON array");
+  }
+  return data as PersonFromApi[];
+}
+
+// ─── Employee client methods ──────────────────────────────────────────────────
+
+export async function fetchEmployees(params?: {
+  limit?: number;
+}): Promise<EmployeeFromApi[]> {
+  const search = new URLSearchParams();
+  if (params?.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  const qs = search.toString() ? `?${search.toString()}` : "";
+  const url = `${getApiBaseUrl()}/api/v0/employees${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Employees request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Employees response is not a JSON array");
+  }
+  return data as EmployeeFromApi[];
+}
+
+// ─── NHI client methods ───────────────────────────────────────────────────────
+
+export async function fetchNHIs(params?: {
+  limit?: number;
+}): Promise<NHIFromApi[]> {
+  const search = new URLSearchParams();
+  if (params?.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  const qs = search.toString() ? `?${search.toString()}` : "";
+  const url = `${getApiBaseUrl()}/api/v0/nhi${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `NHIs request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("NHIs response is not a JSON array");
+  }
+  return data as NHIFromApi[];
+}
+
+// ─── EmployeeRecord client methods ────────────────────────────────────────────
+
+export async function fetchEmployeeRecords(params?: {
+  limit?: number;
+}): Promise<EmployeeRecordFromApi[]> {
+  const search = new URLSearchParams();
+  if (params?.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  const qs = search.toString() ? `?${search.toString()}` : "";
+  const url = `${getApiBaseUrl()}/api/v0/employee-records${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Employee records request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Employee records response is not a JSON array");
+  }
+  return data as EmployeeRecordFromApi[];
+}
+
+export async function fetchPlatformLogs(params: {
+  limit?: number;
+  level?: string;
+}): Promise<PlatformLogEntry[]> {
+  const search = new URLSearchParams();
+  search.set("limit", String(params.limit ?? 50));
+  if (params.level !== undefined && params.level !== "") {
+    search.set("level", params.level);
+  }
+  const url = `${getApiBaseUrl()}/api/v0/platform/logs?${search.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Platform logs request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Platform logs response is not a JSON array");
+  }
+  return data as PlatformLogEntry[];
 }
