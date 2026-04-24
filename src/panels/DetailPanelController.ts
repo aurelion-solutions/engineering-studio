@@ -24,9 +24,20 @@ import {
   fetchEmployees,
   fetchNHIs,
   fetchEmployeeRecords,
+  fetchCapabilities,
+  fetchCapabilityMappings,
+  fetchCapabilityGrants,
+  fetchSodRules,
+  fetchSodRuleConditions,
+  fetchFindings,
+  fetchMitigations,
+  fetchScanRuns,
+  fetchFeedbacks,
 } from "../api/platformClient";
 import { INVENTORY_CATEGORIES } from "../integrations/inventory/inventoryCategories";
 import type { InventoryCategoryFetcherName } from "../integrations/inventory/inventoryCategories";
+import { ACCESS_ANALYSIS_CATEGORIES } from "../integrations/accessAnalysis/accessAnalysisCategories";
+import type { AccessAnalysisCategoryFetcherName } from "../integrations/accessAnalysis/accessAnalysisCategories";
 
 type InventoryFetcher = () => Promise<unknown[]>;
 
@@ -47,10 +58,25 @@ const INVENTORY_FETCHERS: Record<InventoryCategoryFetcherName, InventoryFetcher>
   fetchNHIs: () => fetchNHIs(),
   fetchEmployeeRecords: () => fetchEmployeeRecords(),
 };
+
+type AccessAnalysisFetcher = () => Promise<unknown[]>;
+
+const ACCESS_ANALYSIS_FETCHERS: Record<AccessAnalysisCategoryFetcherName, AccessAnalysisFetcher> = {
+  fetchCapabilities: () => fetchCapabilities(),
+  fetchCapabilityMappings: () => fetchCapabilityMappings(),
+  fetchCapabilityGrants: () => fetchCapabilityGrants(),
+  fetchSodRules: () => fetchSodRules(),
+  fetchFindings: () => fetchFindings(),
+  fetchMitigations: () => fetchMitigations(),
+  fetchScanRuns: () => fetchScanRuns(),
+  fetchFeedbacks: () => fetchFeedbacks(),
+};
 import { buildApplicationRows, applicationColumns, buildConnectorSection, buildEditConfig } from "./renderers/applicationRenderer";
 import { buildInventoryRows, inventoryColumns } from "./renderers/inventoryListRenderer";
+import { buildAccessAnalysisRows, accessAnalysisColumns } from "./renderers/accessAnalysisListRenderer";
 import { buildEventsRows, eventsColumns } from "./renderers/eventsListRenderer";
 import { buildLogsRows, logsColumns } from "./renderers/logsListRenderer";
+import { buildItemDetailRows, itemDetailColumns, buildSodConditionsSection } from "./renderers/itemDetailRenderer";
 import { levelsForMinimum } from "../integrations/logs/levelFilter";
 
 export type { PanelOpenArgs };
@@ -58,6 +84,7 @@ export type { PanelOpenArgs };
 export interface DetailPanelControllerOptions {
   readonly extensionChannel: vscode.LogOutputChannel;
   readonly refreshSecondsProvider: () => number;
+  readonly extensionUri: vscode.Uri;
 }
 
 type PanelEntry = {
@@ -74,10 +101,14 @@ export class DetailPanelController implements vscode.Disposable {
   private insertionCounter = 0;
   private readonly extensionChannel: vscode.LogOutputChannel;
   private readonly refreshSecondsProvider: () => number;
+  private readonly extensionUri: vscode.Uri;
+  // Maps panel key → last fetched raw items (for row-click drill-down)
+  private readonly _itemCache = new Map<string, Record<string, unknown>[]>();
 
   constructor(options: DetailPanelControllerOptions) {
     this.extensionChannel = options.extensionChannel;
     this.refreshSecondsProvider = options.refreshSecondsProvider;
+    this.extensionUri = options.extensionUri;
   }
 
   openOrReveal(args: PanelOpenArgs): void {
@@ -103,7 +134,10 @@ export class DetailPanelController implements vscode.Disposable {
     );
 
     const nonce = this._nonce();
-    panel.webview.html = renderPanelHtml(nonce, panel.webview.cspSource);
+    const scriptUri = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "panel-webview.js"),
+    ).toString();
+    panel.webview.html = renderPanelHtml(nonce, panel.webview.cspSource, scriptUri);
 
     const entry: PanelEntry = {
       panel,
@@ -113,7 +147,7 @@ export class DetailPanelController implements vscode.Disposable {
 
     this.panels.set(key, entry);
 
-    entry.messageDisposable = panel.webview.onDidReceiveMessage(async (msg: { type: string; appId?: string; payload?: Record<string, unknown> }) => {
+    entry.messageDisposable = panel.webview.onDidReceiveMessage(async (msg: { type: string; appId?: string; payload?: Record<string, unknown>; id?: string }) => {
       if (msg.type === "patch" && msg.appId && msg.payload) {
         try {
           await updateApplication(msg.appId, msg.payload);
@@ -122,6 +156,26 @@ export class DetailPanelController implements vscode.Disposable {
           this.extensionChannel.error(`DetailPanelController: patch error for ${key}`, String(err));
           void entry.panel.webview.postMessage({ type: "error", message: String(err) });
         }
+      }
+      if (msg.type === "itemClick" && msg.id) {
+        const items = this._itemCache.get(key) ?? [];
+        const item = items.find(
+          (it) => String(it["id"]) === msg.id || String(it["external_id"]) === msg.id,
+        );
+        if (!item) { return; }
+        const parentKind = args.kind === "inventory" || args.kind === "accessAnalysis" ? args.kind : undefined;
+        if (!parentKind) { return; }
+        const categoryKey = (args as { categoryKey?: string }).categoryKey ?? "";
+        const label = String(item["name"] ?? item["slug"] ?? item["code"] ?? item["username"] ?? item["external_id"] ?? msg.id.slice(0, 8));
+        this.openOrReveal({
+          kind: "itemDetail",
+          ctxKey: `item:${msg.id}`,
+          parentKind,
+          categoryKey,
+          itemId: msg.id,
+          label,
+          item,
+        });
       }
     });
 
@@ -190,6 +244,7 @@ export class DetailPanelController implements vscode.Disposable {
     }
     this.panels.clear();
     this._argsCache.clear();
+    this._itemCache.clear();
   }
 
   // ─── Private ─────────────────────────────────────────────────────────────────
@@ -203,6 +258,8 @@ export class DetailPanelController implements vscode.Disposable {
       case "inventory": return args.label;
       case "events": return `Events · ${args.domain}`;
       case "logs": return `Logs · ${args.minLevel}+`;
+      case "accessAnalysis": return args.label;
+      case "itemDetail": return args.label;
     }
   }
 
@@ -323,9 +380,43 @@ export class DetailPanelController implements vscode.Disposable {
         const fetcherName = catDef.fetcherName as InventoryCategoryFetcherName;
         const fetcher = INVENTORY_FETCHERS[fetcherName];
         const items = await fetcher();
+        const panelKey = `${args.kind}:${args.ctxKey}`;
+        this._itemCache.set(panelKey, items as Record<string, unknown>[]);
         return {
           rows: buildInventoryRows(args.categoryKey, items),
           columns: inventoryColumns(),
+        };
+      }
+
+      case "accessAnalysis": {
+        const catDef = ACCESS_ANALYSIS_CATEGORIES.find((c) => c.key === args.categoryKey);
+        if (!catDef) {
+          throw new Error(`Unknown access analysis category: ${args.categoryKey}`);
+        }
+        const fetcherName = catDef.fetcherName as AccessAnalysisCategoryFetcherName;
+        const fetcher = ACCESS_ANALYSIS_FETCHERS[fetcherName];
+        const items = await fetcher();
+        const panelKey = `${args.kind}:${args.ctxKey}`;
+        this._itemCache.set(panelKey, items as Record<string, unknown>[]);
+        return {
+          rows: buildAccessAnalysisRows(args.categoryKey, items),
+          columns: accessAnalysisColumns(),
+        };
+      }
+
+      case "itemDetail": {
+        const extraSections: Section[] = [];
+        if (args.categoryKey === "sodRules" && typeof args.item["id"] === "number") {
+          const [conditions, caps] = await Promise.all([
+            fetchSodRuleConditions(args.item["id"] as number),
+            fetchCapabilities(),
+          ]);
+          extraSections.push(buildSodConditionsSection(conditions, caps));
+        }
+        return {
+          rows: buildItemDetailRows(args.item),
+          columns: itemDetailColumns(),
+          extraSections,
         };
       }
 

@@ -2,7 +2,7 @@
   "name": "aurelion-engineering-studio",
   "displayName": "Aurelion Engineering Studio",
   "description": "Aurelion tools and integrations for VS Code.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "aurelion",
   "license": "Apache-2.0",
   "icon": "media/logo.svg",
@@ -47,6 +47,12 @@
           "contextualTitle": "Aurelion"
         },
         {
+          "id": "aurelion.engineeringStudio.accessAnalysisView",
+          "name": "Access Analysis",
+          "icon": "$(shield)",
+          "contextualTitle": "Aurelion"
+        },
+        {
           "id": "aurelion.engineeringStudio.eventsView",
           "name": "Events",
           "icon": "$(pulse)",
@@ -68,6 +74,10 @@
       {
         "view": "aurelion.engineeringStudio.inventoryView",
         "contents": "Inventory slices appear here as they are implemented."
+      },
+      {
+        "view": "aurelion.engineeringStudio.accessAnalysisView",
+        "contents": "Access Analysis slices appear here as they are implemented."
       },
       {
         "view": "aurelion.engineeringStudio.eventsView",
@@ -124,6 +134,17 @@
         "category": "Aurelion"
       },
       {
+        "command": "aurelion.refreshAccessAnalysis",
+        "title": "Aurelion: Refresh access analysis",
+        "icon": "$(refresh)",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.focusAccessAnalysisView",
+        "title": "Aurelion: Reveal access analysis view",
+        "category": "Aurelion"
+      },
+      {
         "command": "aurelion.refreshEvents",
         "title": "Aurelion: Refresh events tree",
         "icon": "$(refresh)",
@@ -151,6 +172,11 @@
         {
           "command": "aurelion.refreshInventory",
           "when": "view == aurelion.engineeringStudio.inventoryView",
+          "group": "navigation"
+        },
+        {
+          "command": "aurelion.refreshAccessAnalysis",
+          "when": "view == aurelion.engineeringStudio.accessAnalysisView",
           "group": "navigation"
         },
         {
@@ -233,7 +259,7 @@
     "lint": "node --disable-warning=DEP0040 ./node_modules/eslint/bin/eslint.js src",
     "package": "node --disable-warning=DEP0040 ./node_modules/@vscode/vsce/vsce package",
     "pretest": "pnpm run compile",
-    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\""
+    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\" \"out/integrations/accessAnalysis/__tests__/*.test.js\""
   },
   "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "devDependencies": {
