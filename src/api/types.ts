@@ -492,6 +492,163 @@ export type EmployeeRecordFromApi = {
   updated_at: string;
 };
 
+// ─── Access Analysis: Capability ────────────────────────────────────────────
+
+/** GET /api/v0/capabilities / GET /api/v0/capabilities/{id} */
+export type CapabilityFromApi = {
+  readonly id: number;
+  readonly slug: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly is_active: boolean;
+  readonly created_at: string;
+  readonly created_by: string | null;
+};
+
+// ─── Access Analysis: CapabilityMapping ─────────────────────────────────────
+
+/** GET /api/v0/capability-mappings / GET /api/v0/capability-mappings/{id} */
+export type CapabilityMappingFromApi = {
+  readonly id: number;
+  readonly capability_id: number;
+  readonly application_id: string | null;
+  readonly resource_id: string | null;
+  readonly resource_kind: string | null;
+  readonly resource_path_glob: string | null;
+  readonly action_slug: string | null;
+  readonly scope_key_id: number;
+  readonly scope_value_source: Record<string, unknown>;
+  readonly is_active: boolean;
+  readonly created_at: string;
+  readonly created_by: string | null;
+};
+
+// ─── Access Analysis: CapabilityGrant ───────────────────────────────────────
+
+/** GET /api/v0/capability-grants */
+export type CapabilityGrantFromApi = {
+  readonly id: number;
+  readonly subject_id: string;
+  readonly capability_id: number;
+  readonly scope_key_id: number;
+  readonly scope_value: string | null;
+  readonly application_id: string;
+  readonly source_effective_grant_id: string;
+  readonly source_capability_mapping_id: number;
+  readonly observed_at: string;
+  readonly tombstoned_at: string | null;
+};
+
+// ─── Access Analysis: SodRule ────────────────────────────────────────────────
+
+/** GET /api/v0/sod-rules / GET /api/v0/sod-rules/{id} */
+export type SodRuleFromApi = {
+  readonly id: number;
+  readonly code: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly severity: string;
+  readonly scope_mode: string;
+  readonly scope_key_id: number | null;
+  readonly is_enabled: boolean;
+  readonly mitigation_allowed: boolean;
+  readonly created_at: string;
+  readonly created_by: string | null;
+};
+
+// ─── Access Analysis: SodRuleCondition ──────────────────────────────────────
+
+/** GET /api/v0/sod-rules/{rule_id}/conditions */
+export type SodRuleConditionFromApi = {
+  readonly id: number;
+  readonly rule_id: number;
+  readonly name: string;
+  readonly min_count: number;
+  readonly capability_ids: number[];
+  readonly created_at: string;
+};
+
+// ─── Access Analysis: Finding ────────────────────────────────────────────────
+
+/** GET /api/v0/findings / GET /api/v0/findings/{id} */
+export type FindingFromApi = {
+  readonly id: number;
+  readonly scan_run_id: number;
+  readonly kind: string;
+  readonly subject_id: string | null;
+  readonly account_id: string | null;
+  readonly rule_id: number | null;
+  readonly scope_key_id: number | null;
+  readonly scope_value: string | null;
+  readonly severity: string;
+  readonly status: string;
+  readonly matched_capability_grant_ids: unknown[];
+  readonly matched_effective_grant_ids: unknown[];
+  readonly matched_access_fact_ids: unknown[];
+  readonly evidence_hash: string;
+  readonly active_mitigation_id: number | null;
+  readonly proposed_mitigation_id: number | null;
+  readonly detected_at: string;
+  readonly evaluated_at: string;
+  readonly status_changed_at: string | null;
+  readonly status_reason: string | null;
+};
+
+// ─── Access Analysis: Mitigation ─────────────────────────────────────────────
+
+/** GET /api/v0/mitigations / GET /api/v0/mitigations/{id} */
+export type MitigationFromApi = {
+  readonly id: number;
+  readonly rule_id: number;
+  readonly control_id: number;
+  readonly subject_id: string;
+  readonly scope_key_id: number | null;
+  readonly scope_value: string | null;
+  readonly reason: string | null;
+  readonly status: string;
+  readonly valid_from: string;
+  readonly valid_until: string | null;
+  readonly owner_id: string;
+  readonly created_at: string;
+  readonly created_by: string | null;
+};
+
+// ─── Access Analysis: ScanRun ────────────────────────────────────────────────
+
+/** GET /api/v0/scan-runs / GET /api/v0/scan-runs/{id} */
+export type ScanRunFromApi = {
+  readonly id: number;
+  readonly status: string;
+  readonly triggered_by: string;
+  readonly started_at: string | null;
+  readonly completed_at: string | null;
+  readonly scope_subject_id: string | null;
+  readonly scope_application_id: string | null;
+  readonly findings_total: number;
+  readonly findings_by_severity: Record<string, unknown>;
+  readonly findings_created_count: number;
+  readonly findings_reused_count: number;
+  readonly error_message: string | null;
+  readonly created_at: string;
+  readonly created_by: string | null;
+};
+
+// ─── Access Analysis: Feedback ───────────────────────────────────────────────
+
+/** GET /api/v0/feedbacks / GET /api/v0/feedbacks/{id} */
+export type FeedbackFromApi = {
+  readonly id: number;
+  readonly rule_id: number | null;
+  readonly capability_mapping_id: number | null;
+  readonly finding_id: number | null;
+  readonly subject_id: string | null;
+  readonly kind: string;
+  readonly message: string;
+  readonly payload: Record<string, unknown> | null;
+  readonly created_at: string;
+  readonly created_by: string | null;
+};
+
 // --- Inventory: AccessFact ---
 
 export type AccessFactEffect = "allow" | "deny";

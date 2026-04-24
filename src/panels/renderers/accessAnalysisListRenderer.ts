@@ -1,27 +1,27 @@
 /**
- * Renderer for inventory list panels.
+ * Renderer for access analysis list panels.
  * Pure buildRows/title/columns — no vscode dep.
  */
 
 import type { PanelOpenArgs, PanelRow } from "../types";
-import { INVENTORY_CATEGORIES } from "../../integrations/inventory/inventoryCategories";
+import { ACCESS_ANALYSIS_CATEGORIES } from "../../integrations/accessAnalysis/accessAnalysisCategories";
 
-export function inventoryTitle(ctx: PanelOpenArgs): string {
-  if (ctx.kind !== "inventory") {
-    return "Inventory";
+export function accessAnalysisTitle(ctx: PanelOpenArgs): string {
+  if (ctx.kind !== "accessAnalysis") {
+    return "Access Analysis";
   }
   return ctx.label;
 }
 
-export function inventoryColumns(): string[] {
+export function accessAnalysisColumns(): string[] {
   return ["ID", "Name", "Description", "Updated"];
 }
 
-export function buildInventoryRows(
+export function buildAccessAnalysisRows(
   categoryKey: string,
   data: unknown[],
 ): PanelRow[] {
-  const catDef = INVENTORY_CATEGORIES.find((c) => c.key === categoryKey);
+  const catDef = ACCESS_ANALYSIS_CATEGORIES.find((c) => c.key === categoryKey);
 
   return data.map((row, idx) => {
     let id = "";
@@ -38,7 +38,7 @@ export function buildInventoryRows(
       // Fallback: generic field extraction
       const r = row as Record<string, unknown>;
       id = String(r["id"] ?? idx);
-      name = String(r["external_id"] ?? r["name"] ?? "");
+      name = String(r["slug"] ?? r["code"] ?? r["name"] ?? "");
       desc = String(r["status"] ?? r["kind"] ?? "");
       ts = String(r["updated_at"] ?? r["created_at"] ?? "");
     }
@@ -56,11 +56,11 @@ export function buildInventoryRows(
   });
 }
 
-export const inventoryListRenderer = {
-  kind: "inventory" as const,
-  title: inventoryTitle,
-  columns: inventoryColumns,
+export const accessAnalysisListRenderer = {
+  kind: "accessAnalysis" as const,
+  title: accessAnalysisTitle,
+  columns: accessAnalysisColumns,
   buildRows: (data: { categoryKey: string; items: unknown[] }) =>
-    buildInventoryRows(data.categoryKey, data.items),
+    buildAccessAnalysisRows(data.categoryKey, data.items),
   refreshSeconds: null as null,
 };
