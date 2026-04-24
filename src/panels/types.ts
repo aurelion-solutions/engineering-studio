@@ -3,7 +3,7 @@
  * No `vscode` import — unit-testable via `node --test`.
  */
 
-export type PanelContentKind = "application" | "inventory" | "events" | "logs";
+export type PanelContentKind = "application" | "inventory" | "events" | "logs" | "accessAnalysis";
 
 export type PanelRow = {
   id: string;
@@ -38,7 +38,9 @@ export type PanelOpenArgs =
   | { kind: "application"; ctxKey: string; appId: string; appName: string }
   | { kind: "inventory"; ctxKey: string; categoryKey: string; label: string }
   | { kind: "events"; ctxKey: string; domain: "inventory" | "capabilities" | "platform" }
-  | { kind: "logs"; ctxKey: string; minLevel: "debug" | "info" | "warning" | "error" };
+  | { kind: "logs"; ctxKey: string; minLevel: "debug" | "info" | "warning" | "error" }
+  | { kind: "accessAnalysis"; ctxKey: string; categoryKey: string; label: string }
+  | { kind: "itemDetail"; ctxKey: string; parentKind: "inventory" | "accessAnalysis"; categoryKey: string; itemId: string; label: string; item: Record<string, unknown> };
 
 export interface PanelRenderer<TData = unknown> {
   kind: PanelContentKind;

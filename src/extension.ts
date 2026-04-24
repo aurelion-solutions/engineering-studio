@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ApplicationsTreeDataProvider } from "./integrations/applications/tree";
 import { InventoryTreeDataProvider } from "./integrations/inventory/tree";
+import { AccessAnalysisTreeDataProvider } from "./integrations/accessAnalysis/tree";
 import { StatusBarController } from "./integrations/statusBar/controller";
 import { LogDocumentContentProvider } from "./integrations/logs/contentProvider";
 import { LOGS_SCHEME } from "./integrations/logs/uri";
@@ -26,6 +27,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ─── Detail panel controller ─────────────────────────────────────────────────
   const detailPanels = new DetailPanelController({
     extensionChannel,
+    extensionUri: context.extensionUri,
     refreshSecondsProvider: () =>
       Math.max(
         2,
@@ -55,6 +57,15 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(inventoryTreeView);
   context.subscriptions.push(inventoryProvider);
+
+  // ─── Access Analysis tree ────────────────────────────────────────────────────
+  const accessAnalysisProvider = new AccessAnalysisTreeDataProvider();
+  const accessAnalysisTreeView = vscode.window.createTreeView(
+    "aurelion.engineeringStudio.accessAnalysisView",
+    { treeDataProvider: accessAnalysisProvider },
+  );
+  context.subscriptions.push(accessAnalysisTreeView);
+  context.subscriptions.push(accessAnalysisProvider);
 
   // ─── Events tree ─────────────────────────────────────────────────────────────
   const eventsProvider = new EventsTreeDataProvider();
@@ -155,6 +166,20 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("aurelion.focusInventoryView", () => {
       void vscode.commands.executeCommand(
         "aurelion.engineeringStudio.inventoryView.focus",
+      );
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.refreshAccessAnalysis", () => {
+      accessAnalysisProvider.refresh();
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.focusAccessAnalysisView", () => {
+      void vscode.commands.executeCommand(
+        "aurelion.engineeringStudio.accessAnalysisView.focus",
       );
     }),
   );

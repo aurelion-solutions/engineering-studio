@@ -48,6 +48,15 @@ import type {
   SubjectStatus,
   ThreatFactFromApi,
   ThreatFactUpsertPayload,
+  CapabilityFromApi,
+  CapabilityMappingFromApi,
+  CapabilityGrantFromApi,
+  SodRuleFromApi,
+  SodRuleConditionFromApi,
+  FindingFromApi,
+  MitigationFromApi,
+  ScanRunFromApi,
+  FeedbackFromApi,
 } from "./types";
 
 export function getApiBaseUrl(): string {
@@ -1166,6 +1175,161 @@ export async function fetchEmployeeRecords(params?: {
     throw new Error("Employee records response is not a JSON array");
   }
   return data as EmployeeRecordFromApi[];
+}
+
+// ─── Access Analysis client methods ──────────────────────────────────────────
+
+export async function fetchCapabilities(): Promise<CapabilityFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/capabilities`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Capabilities request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Capabilities response is not a JSON array");
+  }
+  return data as CapabilityFromApi[];
+}
+
+export async function fetchCapabilityMappings(): Promise<CapabilityMappingFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/capability-mappings`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Capability mappings request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Capability mappings response is not a JSON array");
+  }
+  return data as CapabilityMappingFromApi[];
+}
+
+export async function fetchCapabilityGrants(params?: {
+  subject_id?: string;
+}): Promise<CapabilityGrantFromApi[]> {
+  const search = new URLSearchParams();
+  if (params?.subject_id !== undefined) {
+    search.set("subject_id", params.subject_id);
+  }
+  const qs = search.toString() ? `?${search.toString()}` : "";
+  const url = `${getApiBaseUrl()}/api/v0/capability-grants${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Capability grants request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Capability grants response is not a JSON array");
+  }
+  return data as CapabilityGrantFromApi[];
+}
+
+export async function fetchSodRules(): Promise<SodRuleFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/sod-rules`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `SoD rules request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("SoD rules response is not a JSON array");
+  }
+  return data as SodRuleFromApi[];
+}
+
+export async function fetchSodRuleConditions(
+  ruleId: number,
+): Promise<SodRuleConditionFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/sod-rules/${ruleId}/conditions`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `SoD rule conditions request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("SoD rule conditions response is not a JSON array");
+  }
+  return data as SodRuleConditionFromApi[];
+}
+
+export async function fetchFindings(): Promise<FindingFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/findings`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Findings request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Findings response is not a JSON array");
+  }
+  return data as FindingFromApi[];
+}
+
+export async function fetchMitigations(): Promise<MitigationFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/mitigations`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Mitigations request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Mitigations response is not a JSON array");
+  }
+  return data as MitigationFromApi[];
+}
+
+export async function fetchScanRuns(): Promise<ScanRunFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/scan-runs`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Scan runs request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Scan runs response is not a JSON array");
+  }
+  return data as ScanRunFromApi[];
+}
+
+export async function fetchFeedbacks(): Promise<FeedbackFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/feedbacks`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Feedbacks request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Feedbacks response is not a JSON array");
+  }
+  return data as FeedbackFromApi[];
 }
 
 export async function fetchPlatformLogs(params: {

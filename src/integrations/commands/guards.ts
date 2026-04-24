@@ -73,6 +73,7 @@ export function isOpenDetailPanelArg(v: unknown): v is PanelOpenArgs {
     case "application":
       return typeof r["appId"] === "string" && typeof r["appName"] === "string";
     case "inventory":
+    case "accessAnalysis":
       return typeof r["categoryKey"] === "string" && typeof r["label"] === "string";
     case "events":
       return (

@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+- Phase 13 SoD & Access Analysis complete (19/19 milestones)
+- ACCESS ANALYSIS tree view with 8 read-only category nodes (Capabilities, Capability Mappings, Capability Grants, SoD Rules, Findings, Mitigations, Scan Runs, Feedback)
+- `AccessAnalysisTreeDataProvider` mirroring the Inventory tree pattern; each node opens a detail panel via `DetailPanelController`
+- 8 read-only API types and platform client fetchers for the access-analysis surface
+- `aurelion.refreshAccessAnalysis` and `aurelion.focusAccessAnalysisView` commands
+- `accessAnalysisListRenderer` pure renderer parallel to `inventoryListRenderer`
+- Item detail drawer — clicking any row in Inventory or Access Analysis panels opens a new panel with all object fields as key-value rows
+- `itemDetailRenderer` with `buildItemDetailRows` and `itemDetailColumns`; SoD rules additionally fetch and display conditions with `min_count` and capability slugs in an extra section
+- `fetchSodRuleConditions` client function and `SodRuleConditionFromApi` type
+- `buildSodConditionsSection` renderer for the conditions extra section
+
+### Fixed
+
+- Detail panels stuck at "Loading…" — inline script blocked by VS Code / Electron CSP; extracted all webview JS to `media/panel-webview.js` and loaded via `<script src>` with `cspSource` allowlist
+- Access Analysis tree items (Capabilities, SoD Rules, etc.) not opening on click — `isOpenDetailPanelArg` guard missing `"accessAnalysis"` case; all 8 category nodes now open correctly
+- `GET /capability-grants` returning 400 when opened from the Access Analysis panel — removed mandatory-filter requirement; panel now receives up to 100 grants without a filter
+
 ## [0.2.0] - 2026-04-22
 
 ### Changed
