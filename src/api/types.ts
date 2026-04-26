@@ -649,6 +649,67 @@ export type FeedbackFromApi = {
   readonly created_by: string | null;
 };
 
+// ─── LLM Platform ────────────────────────────────────────────────────────────
+
+/** Supported LLM backend providers. */
+export type LLMProvider = "llama_cpp" | "openai" | "ollama";
+
+/** GET /api/v0/llm/models / GET /api/v0/llm/models/{id} */
+export type LLMModelFromApi = {
+  id: string;
+  name: string;
+  description: string | null;
+  provider: LLMProvider;
+  local_path: string | null;
+  endpoint_url: string | null;
+  model_ref: string | null;
+  context_window: number | null;
+  max_total_tokens: number | null;
+  default_params: Record<string, unknown>;
+  secret_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** GET /api/v0/llm/execution-profiles */
+export type LLMExecutionProfileFromApi = {
+  id: string;
+  name: string;
+  model_id: string;
+  param_overrides: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+// ─── LLM Inference ───────────────────────────────────────────────────────────
+
+/** Single chat message in an inference request. */
+export type LLMInferenceMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+/** POST /api/v0/inference body */
+export type LLMInferenceRequest = {
+  execution_profile_id: string;
+  messages: LLMInferenceMessage[];
+};
+
+/** POST /api/v0/inference response */
+export type LLMInferenceResponse = {
+  output: string;
+  model: string;
+  tokens_used: number;
+  latency_ms: number;
+};
+
+/** Single SSE chunk from POST /api/v0/inference/stream */
+export type LLMInferenceStreamChunk =
+  | { token: string; done: false }
+  | { output: string; model: string; tokens_used: number; latency_ms: number; ttft_ms?: number; done: true }
+  | { error: string; done: true };
+
 // --- Inventory: AccessFact ---
 
 export type AccessFactEffect = "allow" | "deny";

@@ -6,7 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Notes
+
+- Phase 14 Step 9 — kernel now exposes `/api/v0/llm/execution-profiles` (GET/POST/PATCH/DELETE); Studio LLM profiles UI deferred to Step 13
+
 ### Added
+
+- Phase 14 LLM Platform Layer complete (13/13 milestones)
+- LLM Inference panel — execution profile selector (dropdown populated from kernel), prompt textarea, Run / Stream / Abort buttons, progressive token rendering for streaming mode, footer with `model · tokens_used · latency_ms · ttft_ms`
+- `InferencePanelController` — single-instance `WebviewPanel` (ViewColumn.Beside), `openOrReveal()` / `_cancelInflight()` / `notifyApiBaseChanged()` / `dispose()`
+- `LlmInferenceTreeDataProvider` — one-node tree view with `$(zap)` icon and click-to-open command
+- `inferencePanelHtml.ts` — pure renderer for the inference panel HTML skeleton (CSP `connect-src 'none'`)
+- `media/inference-webview.js` — vanilla client-side JS: `acquireVsCodeApi()`, profile dropdown, run/stream/abort click handlers, progressive token append, footer update
+- `src/api/sseParser.ts` — pure SSE parser (`parseSseStream` async generator, `TextDecoder` streaming, `onParseError` callback, `AbortSignal` support)
+- `runInference` and `streamInference` client functions in `platformClient.ts`
+- `LLMInferenceRequest`, `LLMInferenceResponse`, `LLMInferenceStreamChunk` API types
+- `aurelion.openInferencePanel` command
+- `aurelion.engineeringStudio.llmInferenceView` sidebar view with welcome entry
+- 11 new tests: SSE parser (5), platformClient inference (4), tree provider (2), InferencePanelController (4)
+
+- LLM Models tree view with sparkle/circle-slash icons and provider badge
+- Read-only detail panel showing model fields and associated execution profiles
+- `LlmModelsTreeDataProvider` with error-safe refresh on config change
+- `llmModelRenderer` pure renderer with no vscode dependency
+- `aurelion.refreshLlmModels` and `aurelion.focusLlmModelsView` commands
+- `LLMProvider`, `LLMModelFromApi`, `LLMExecutionProfileFromApi` API types
+- `fetchLlmModels` and `fetchLlmExecutionProfiles` platform client functions
 
 - Phase 13 SoD & Access Analysis complete (19/19 milestones)
 - ACCESS ANALYSIS tree view with 8 read-only category nodes (Capabilities, Capability Mappings, Capability Grants, SoD Rules, Findings, Mitigations, Scan Runs, Feedback)
@@ -24,6 +49,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Detail panels stuck at "Loading…" — inline script blocked by VS Code / Electron CSP; extracted all webview JS to `media/panel-webview.js` and loaded via `<script src>` with `cspSource` allowlist
 - Access Analysis tree items (Capabilities, SoD Rules, etc.) not opening on click — `isOpenDetailPanelArg` guard missing `"accessAnalysis"` case; all 8 category nodes now open correctly
 - `GET /capability-grants` returning 400 when opened from the Access Analysis panel — removed mandatory-filter requirement; panel now receives up to 100 grants without a filter
+- LLM view refactored from two separate tree views into one unified "LLM" view with Models and Inference sections
+- Active model status indicator showing red instead of green — color corrected in `media/panel-webview.js`
+- Inference requests sending profile name instead of UUID — `execution_profile_id` now resolved correctly before dispatch
 
 ## [0.2.0] - 2026-04-22
 
