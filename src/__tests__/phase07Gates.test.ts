@@ -95,9 +95,17 @@ describe("Gate (a): no webview residue", () => {
   });
 
   it("media/ has no webview residue", () => {
+    // panel-webview.js and inference-webview.js are intentional webview client scripts
+    // loaded via <script src> to satisfy VS Code's CSP. They legitimately use
+    // postMessage and acquireVsCodeApi — that is their entire purpose.
+    const ALLOWED_MEDIA_FILES = [
+      path.join(MEDIA, "panel-webview.js"),
+      path.join(MEDIA, "inference-webview.js"),
+    ];
+
     const mediaFiles = collectFiles(MEDIA, (f) =>
       [".ts", ".js", ".css", ".html"].some((ext) => f.endsWith(ext)),
-    );
+    ).filter((f) => !ALLOWED_MEDIA_FILES.includes(f));
     const violations: string[] = [];
     for (const file of mediaFiles) {
       const content = fs.readFileSync(file, "utf8");

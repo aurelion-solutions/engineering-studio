@@ -107,7 +107,8 @@
         return '<span class="kv-key">' + escapeHtml(cell.value) + '</span>'
           + (cell.extra ? ': ' + escapeHtml(cell.extra) : '');
       case 'status': {
-        const cls = cell.value.toLowerCase() === 'online' ? 'status-online' : 'status-offline';
+        const positiveStatuses = ['online', 'active', 'connected', 'ok', 'success'];
+        const cls = positiveStatuses.includes(cell.value.toLowerCase()) ? 'status-online' : 'status-offline';
         return '<span class="status-badge ' + cls + '">' + escapeHtml(cell.value) + '</span>';
       }
       default:

@@ -33,6 +33,8 @@ import {
   fetchMitigations,
   fetchScanRuns,
   fetchFeedbacks,
+  fetchLlmModels,
+  fetchLlmExecutionProfiles,
 } from "../api/platformClient";
 import { INVENTORY_CATEGORIES } from "../integrations/inventory/inventoryCategories";
 import type { InventoryCategoryFetcherName } from "../integrations/inventory/inventoryCategories";
@@ -77,6 +79,7 @@ import { buildAccessAnalysisRows, accessAnalysisColumns } from "./renderers/acce
 import { buildEventsRows, eventsColumns } from "./renderers/eventsListRenderer";
 import { buildLogsRows, logsColumns } from "./renderers/logsListRenderer";
 import { buildItemDetailRows, itemDetailColumns, buildSodConditionsSection } from "./renderers/itemDetailRenderer";
+import { buildLlmModelRows, llmModelColumns, buildLlmModelProfilesSection } from "./renderers/llmModelRenderer";
 import { levelsForMinimum } from "../integrations/logs/levelFilter";
 
 export type { PanelOpenArgs };
@@ -260,12 +263,17 @@ export class DetailPanelController implements vscode.Disposable {
       case "logs": return `Logs · ${args.minLevel}+`;
       case "accessAnalysis": return args.label;
       case "itemDetail": return args.label;
+      case "llmModel": return `LLM Model: ${args.label}`;
+      case "llmModelsList": return "LLM Models";
     }
   }
 
   private _refreshSecsForArgs(args: PanelOpenArgs): number | null {
     if (args.kind === "events" || args.kind === "logs") {
       return this.refreshSecondsProvider();
+    }
+    if (args.kind === "llmModel") {
+      return null;
     }
     return null;
   }
@@ -452,6 +460,38 @@ export class DetailPanelController implements vscode.Disposable {
           filterBy: cols.indexOf("Correlation ID"),
           filterByMessage: cols.indexOf("Message"),
           filterByTs: true,
+        };
+      }
+
+      case "llmModel": {
+        const [models, profiles] = await Promise.all([
+          fetchLlmModels(),
+          fetchLlmExecutionProfiles(),
+        ]);
+        const model = models.find((m) => m.id === args.modelId);
+        if (!model) {
+          throw new Error(`LLM model not found: ${args.modelId}`);
+        }
+        const modelProfiles = profiles.filter((p) => p.model_id === args.modelId);
+        return {
+          rows: buildLlmModelRows(model),
+          columns: llmModelColumns(),
+          extraSections: [buildLlmModelProfilesSection(modelProfiles)],
+        };
+      }
+
+      case "llmModelsList": {
+        const models = await fetchLlmModels();
+        return {
+          rows: models.map((m) => ({
+            id: m.id,
+            cells: [
+              { kind: "text" as const, value: m.name },
+              { kind: "badge" as const, value: m.provider },
+              { kind: "status" as const, value: m.is_active ? "active" : "inactive" },
+            ],
+          })),
+          columns: ["Name", "Provider", "Status"],
         };
       }
     }

@@ -83,6 +83,10 @@ export function isOpenDetailPanelArg(v: unknown): v is PanelOpenArgs {
       );
     case "logs":
       return ["debug", "info", "warning", "error"].includes(String(r["minLevel"]));
+    case "llmModel":
+      return typeof r["modelId"] === "string" && typeof r["label"] === "string";
+    case "llmModelsList":
+      return true;
     default:
       return false;
   }

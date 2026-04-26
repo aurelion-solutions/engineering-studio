@@ -14,6 +14,8 @@ import {
 import { DetailPanelController } from "./panels/DetailPanelController";
 import { EventsTreeDataProvider } from "./integrations/events/tree";
 import { LogsLevelsTreeDataProvider } from "./integrations/logsLevels/tree";
+import { LlmTreeDataProvider } from "./integrations/llm/tree";
+import { InferencePanelController } from "./panels/InferencePanelController";
 
 export function activate(context: vscode.ExtensionContext): void {
   // ─── Extension-level log channel ─────────────────────────────────────────────
@@ -85,6 +87,22 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(logsLevelsProvider);
 
+  // ─── LLM tree (Models + Inference) ───────────────────────────────────────────
+  const llmProvider = new LlmTreeDataProvider();
+  context.subscriptions.push(
+    vscode.window.createTreeView("aurelion.engineeringStudio.llmView", {
+      treeDataProvider: llmProvider,
+    }),
+  );
+  context.subscriptions.push(llmProvider);
+
+  // ─── Inference panel controller ───────────────────────────────────────────────
+  const inferencePanels = new InferencePanelController({
+    extensionChannel,
+    extensionUri: context.extensionUri,
+  });
+  context.subscriptions.push(inferencePanels);
+
   // ─── Status bar ──────────────────────────────────────────────────────────────
   const statusBar = new StatusBarController({
     onClickCommand: "aurelion.focusApplicationsView",
@@ -139,6 +157,22 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("aurelion.refreshLogs", () => {
       logsLevelsProvider.refresh();
+    }),
+  );
+
+
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.openInferencePanel", () => {
+      inferencePanels.openOrReveal();
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.focusLlmView", () => {
+      void vscode.commands.executeCommand(
+        "aurelion.engineeringStudio.llmView.focus",
+      );
     }),
   );
 
@@ -371,6 +405,7 @@ export function activate(context: vscode.ExtensionContext): void {
         streamer.resetAllNewestTs();
         streamer.restartTick();
         detailPanels.refreshAll();
+        inferencePanels.notifyApiBaseChanged();
       }
       if (
         e.affectsConfiguration(
