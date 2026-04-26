@@ -63,6 +63,12 @@
           "name": "Logs",
           "icon": "$(output)",
           "contextualTitle": "Aurelion"
+        },
+        {
+          "id": "aurelion.engineeringStudio.llmView",
+          "name": "LLM",
+          "icon": "$(sparkle)",
+          "contextualTitle": "Aurelion"
         }
       ]
     },
@@ -86,6 +92,10 @@
       {
         "view": "aurelion.engineeringStudio.logsView",
         "contents": "Click a level to open the log feed."
+      },
+      {
+        "view": "aurelion.engineeringStudio.llmView",
+        "contents": "No connection to kernel.\nCheck `aurelion.engineeringStudio.apiBaseUrl` in Settings."
       }
     ],
     "commands": [
@@ -159,6 +169,16 @@
       {
         "command": "aurelion.focusApplication",
         "title": "Focus Application…",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.focusLlmView",
+        "title": "Aurelion: Reveal LLM view",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.openInferencePanel",
+        "title": "Aurelion: Open LLM inference panel",
         "category": "Aurelion"
       }
     ],
@@ -259,7 +279,7 @@
     "lint": "node --disable-warning=DEP0040 ./node_modules/eslint/bin/eslint.js src",
     "package": "node --disable-warning=DEP0040 ./node_modules/@vscode/vsce/vsce package",
     "pretest": "pnpm run compile",
-    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\" \"out/integrations/accessAnalysis/__tests__/*.test.js\""
+    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\" \"out/integrations/accessAnalysis/__tests__/*.test.js\" \"out/integrations/llm/__tests__/*.test.js\" \"out/api/__tests__/*.test.js\""
   },
   "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "devDependencies": {

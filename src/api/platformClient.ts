@@ -57,7 +57,14 @@ import type {
   MitigationFromApi,
   ScanRunFromApi,
   FeedbackFromApi,
+  LLMModelFromApi,
+  LLMExecutionProfileFromApi,
+  LLMInferenceRequest,
+  LLMInferenceResponse,
+  LLMInferenceStreamChunk,
 } from "./types";
+import { parseSseStream } from "./sseParser";
+import type { SseParserOptions } from "./sseParser";
 
 export function getApiBaseUrl(): string {
   const raw = vscode.workspace
@@ -1330,6 +1337,92 @@ export async function fetchFeedbacks(): Promise<FeedbackFromApi[]> {
     throw new Error("Feedbacks response is not a JSON array");
   }
   return data as FeedbackFromApi[];
+}
+
+// ─── LLM Platform client methods ─────────────────────────────────────────────
+
+export async function fetchLlmModels(): Promise<LLMModelFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/llm/models`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `LLM models request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("LLM models response is not a JSON array");
+  }
+  return data as LLMModelFromApi[];
+}
+
+export async function fetchLlmExecutionProfiles(): Promise<LLMExecutionProfileFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/llm/execution-profiles`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `LLM execution profiles request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("LLM execution profiles response is not a JSON array");
+  }
+  return data as LLMExecutionProfileFromApi[];
+}
+
+// ─── LLM Inference client methods ────────────────────────────────────────────
+
+export async function runInference(
+  req: LLMInferenceRequest,
+  signal?: AbortSignal,
+): Promise<LLMInferenceResponse> {
+  const url = `${getApiBaseUrl()}/api/v0/inference`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Inference request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  return res.json() as Promise<LLMInferenceResponse>;
+}
+
+export async function* streamInference(
+  req: LLMInferenceRequest,
+  signal: AbortSignal,
+  options?: Pick<SseParserOptions, "onParseError">,
+): AsyncGenerator<LLMInferenceStreamChunk> {
+  const url = `${getApiBaseUrl()}/api/v0/inference/stream`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify(req),
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Inference stream request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  if (res.body === null) {
+    throw new Error("stream body missing");
+  }
+  yield* parseSseStream(res.body, {
+    signal,
+    onParseError: options?.onParseError,
+  }) as AsyncGenerator<LLMInferenceStreamChunk>;
 }
 
 export async function fetchPlatformLogs(params: {
