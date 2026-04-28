@@ -2,7 +2,7 @@
   "name": "aurelion-engineering-studio",
   "displayName": "Aurelion Engineering Studio",
   "description": "Aurelion tools and integrations for VS Code.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "aurelion",
   "license": "Apache-2.0",
   "icon": "media/logo.svg",
@@ -69,6 +69,12 @@
           "name": "LLM",
           "icon": "$(sparkle)",
           "contextualTitle": "Aurelion"
+        },
+        {
+          "id": "aurelion.engineeringStudio.lakeView",
+          "name": "Lake",
+          "icon": "$(database)",
+          "contextualTitle": "Aurelion"
         }
       ]
     },
@@ -96,6 +102,10 @@
       {
         "view": "aurelion.engineeringStudio.llmView",
         "contents": "No connection to kernel.\nCheck `aurelion.engineeringStudio.apiBaseUrl` in Settings."
+      },
+      {
+        "view": "aurelion.engineeringStudio.lakeView",
+        "contents": "No lake data yet.\n[Refresh Lake](command:aurelion.refreshLake)\n\nIf the kernel is unreachable, check `aurelion.engineeringStudio.apiBaseUrl` in Settings."
       }
     ],
     "commands": [
@@ -180,6 +190,12 @@
         "command": "aurelion.openInferencePanel",
         "title": "Aurelion: Open LLM inference panel",
         "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.refreshLake",
+        "title": "Aurelion: Refresh Lake",
+        "icon": "$(refresh)",
+        "category": "Aurelion"
       }
     ],
     "menus": {
@@ -207,6 +223,11 @@
         {
           "command": "aurelion.refreshLogs",
           "when": "view == aurelion.engineeringStudio.logsView",
+          "group": "navigation"
+        },
+        {
+          "command": "aurelion.refreshLake",
+          "when": "view == aurelion.engineeringStudio.lakeView",
           "group": "navigation"
         }
       ],
@@ -279,7 +300,7 @@
     "lint": "node --disable-warning=DEP0040 ./node_modules/eslint/bin/eslint.js src",
     "package": "node --disable-warning=DEP0040 ./node_modules/@vscode/vsce/vsce package",
     "pretest": "pnpm run compile",
-    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\" \"out/integrations/accessAnalysis/__tests__/*.test.js\" \"out/integrations/llm/__tests__/*.test.js\" \"out/api/__tests__/*.test.js\""
+    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\" \"out/integrations/accessAnalysis/__tests__/*.test.js\" \"out/integrations/llm/__tests__/*.test.js\" \"out/api/__tests__/*.test.js\" \"out/integrations/lake/__tests__/*.test.js\""
   },
   "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "devDependencies": {

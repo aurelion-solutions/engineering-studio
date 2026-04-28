@@ -16,6 +16,8 @@ import { EventsTreeDataProvider } from "./integrations/events/tree";
 import { LogsLevelsTreeDataProvider } from "./integrations/logsLevels/tree";
 import { LlmTreeDataProvider } from "./integrations/llm/tree";
 import { InferencePanelController } from "./panels/InferencePanelController";
+import { LakeViewProvider } from "./integrations/lake/tree";
+import { fetchLakeBatches, fetchLakeStatus } from "./api/platformClient";
 
 export function activate(context: vscode.ExtensionContext): void {
   // ─── Extension-level log channel ─────────────────────────────────────────────
@@ -86,6 +88,17 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
   context.subscriptions.push(logsLevelsProvider);
+
+  // ─── Lake tree ────────────────────────────────────────────────────────────────
+  const lakeProvider = new LakeViewProvider(fetchLakeStatus, () =>
+    fetchLakeBatches({ limit: 50 }),
+  );
+  context.subscriptions.push(
+    vscode.window.createTreeView("aurelion.engineeringStudio.lakeView", {
+      treeDataProvider: lakeProvider,
+    }),
+  );
+  context.subscriptions.push(lakeProvider);
 
   // ─── LLM tree (Models + Inference) ───────────────────────────────────────────
   const llmProvider = new LlmTreeDataProvider();
@@ -161,6 +174,12 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
 
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.refreshLake", () => {
+      lakeProvider.refresh();
+    }),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand("aurelion.openInferencePanel", () => {
@@ -406,6 +425,7 @@ export function activate(context: vscode.ExtensionContext): void {
         streamer.restartTick();
         detailPanels.refreshAll();
         inferencePanels.notifyApiBaseChanged();
+        lakeProvider.refresh();
       }
       if (
         e.affectsConfiguration(
