@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+## [0.2.3] - 2026-04-27
+
+### Added
+
+- Phase 15 Data Lake Migration complete (20/20 milestones)
+- `LakeViewProvider` tree view backed by `GET /api/v0/lake/status` with per-table snapshot metadata
+- `aurelion.engineeringStudio.lakeView` sidebar view with `<namespace>.<name>`, snapshot id, count, and timestamp nodes
+- Recent lake batches section: `LakeSectionHeaderNode` + `LakeBatchNode` items with per-section error isolation
+- `fetchLakeStatus()` and `fetchLakeBatches()` platform client functions
+- `LakeTableStatusFromApi`, `LakeStatusFromApi`, `LakeBatchFromApi`, `LakeBatchListResponseFromApi` API types
+- `aurelion.refreshLake` command with view-title refresh button and config-change listener
+- `integrations/lake/lakeNodes.ts` — pure node builders (`buildLakeTableNodes`, `buildLakeBatchNodes`, `buildLakeSectionHeader`, `buildLakeErrorNode`)
+- 13 new tests: pure node builders + provider (tables + batches sections, concurrent-refresh guard)
+
 ## [0.2.2] - 2026-04-26
 
 ### Notes

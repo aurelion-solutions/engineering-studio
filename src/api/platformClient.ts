@@ -62,6 +62,8 @@ import type {
   LLMInferenceRequest,
   LLMInferenceResponse,
   LLMInferenceStreamChunk,
+  LakeStatusFromApi,
+  LakeBatchListResponseFromApi,
 } from "./types";
 import { parseSseStream } from "./sseParser";
 import type { SseParserOptions } from "./sseParser";
@@ -1423,6 +1425,43 @@ export async function* streamInference(
     signal,
     onParseError: options?.onParseError,
   }) as AsyncGenerator<LLMInferenceStreamChunk>;
+}
+
+// ─── Lake client methods ──────────────────────────────────────────────────────
+
+export async function fetchLakeBatches(params?: {
+  limit?: number;
+  cursor?: string;
+}): Promise<LakeBatchListResponseFromApi> {
+  const search = new URLSearchParams();
+  if (params?.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  if (params?.cursor !== undefined && params.cursor !== "") {
+    search.set("cursor", params.cursor);
+  }
+  const qs = search.toString() ? `?${search.toString()}` : "";
+  const url = `${getApiBaseUrl()}/api/v0/datalake/batches${qs}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Lake batches request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  return res.json() as Promise<LakeBatchListResponseFromApi>;
+}
+
+export async function fetchLakeStatus(): Promise<LakeStatusFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/lake/status`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Lake status request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  return res.json() as Promise<LakeStatusFromApi>;
 }
 
 export async function fetchPlatformLogs(params: {

@@ -710,6 +710,60 @@ export type LLMInferenceStreamChunk =
   | { output: string; model: string; tokens_used: number; latency_ms: number; ttft_ms?: number; done: true }
   | { error: string; done: true };
 
+// ─── Lake status ─────────────────────────────────────────────────────────────
+
+// ─── Lake batches ────────────────────────────────────────────────────────────
+
+/** Single batch entry from GET /api/v0/datalake/batches */
+export type LakeBatchFromApi = {
+  readonly id: string;
+  readonly dataset_type: string;
+  readonly storage_provider: string | null;
+  readonly storage_key: string | null;
+  readonly row_count: number;
+  readonly created_at: string;
+  readonly application_id: string | null;
+  readonly task_id: string | null;
+  readonly content_type: string | null;
+  readonly metadata_json: Record<string, unknown> | null;
+  readonly iceberg_namespace: string | null;
+  readonly iceberg_table: string | null;
+  /**
+   * Iceberg snapshot id — serialized as string by the kernel to avoid JS
+   * int64 precision loss. Null for legacy file-based batches.
+   */
+  readonly snapshot_id: string | null;
+};
+
+/** Response shape from GET /api/v0/datalake/batches */
+export type LakeBatchListResponseFromApi = {
+  readonly items: readonly LakeBatchFromApi[];
+  readonly next_cursor: string | null;
+};
+
+/** Per-table entry from GET /api/v0/lake/status */
+export type LakeTableStatusFromApi = {
+  readonly namespace: string;
+  readonly name: string;
+  /**
+   * Current Iceberg snapshot id.
+   * int64 on the server side — rendered via String() to avoid JS precision loss.
+   * TODO(18b): int64 precision loss
+   */
+  readonly current_snapshot_id: number | null;
+  readonly snapshot_count: number;
+  /** Unix epoch milliseconds of the last snapshot commit, or null. */
+  readonly last_updated_ms: number | null;
+};
+
+/** Response shape from GET /api/v0/lake/status */
+export type LakeStatusFromApi = {
+  readonly catalog_url: string;
+  readonly warehouse_uri: string;
+  readonly storage_provider: string;
+  readonly tables: readonly LakeTableStatusFromApi[];
+};
+
 // --- Inventory: AccessFact ---
 
 export type AccessFactEffect = "allow" | "deny";
