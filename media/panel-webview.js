@@ -8,10 +8,7 @@
   const tbodyEl = document.getElementById('rows');
   const extraSectionsEl = document.getElementById('extra-sections');
   const filterBar = document.getElementById('filter-bar');
-  const corrFilter = document.getElementById('corr-filter');
-  const filterInput = document.getElementById('filter-input');
-  const msgFilter = document.getElementById('msg-filter');
-  const filterMsg = document.getElementById('filter-msg');
+  const filterInputsEl = document.getElementById('filter-inputs');
   const tsFilter = document.getElementById('ts-filter');
   const tsFrom = document.getElementById('ts-from');
   const tsTo = document.getElementById('ts-to');
@@ -20,6 +17,8 @@
   const saveStatus = document.getElementById('save-status');
   let activeAppId = undefined;
   let originalEditValues = {};
+
+  // ── Edit support ────────────────────────────────────────────────────────────
 
   function checkEditDirty() {
     const inputs = tbodyEl.querySelectorAll('.edit-input');
@@ -36,29 +35,101 @@
     }
   });
 
-  let activeFilterBy = undefined;
-  let activeFilterByMsg = undefined;
+  // ── Unified filter state ─────────────────────────────────────────────────────
+  // activeFilters: Array<{ columnIndex: number; inputEl: HTMLInputElement }>
+  let activeFilters = [];
   let activeFilterByTs = false;
 
   function applyFilters() {
-    const q = filterInput.value.toLowerCase();
-    const qMsg = filterMsg.value.toLowerCase();
-    const fromMs = tsFrom.value ? new Date(tsFrom.value + 'Z').getTime() : null;
-    const toMs = tsTo.value ? new Date(tsTo.value + 'Z').getTime() : null;
+    const fromMs = tsFrom && tsFrom.value ? new Date(tsFrom.value + 'Z').getTime() : null;
+    const toMs = tsTo && tsTo.value ? new Date(tsTo.value + 'Z').getTime() : null;
+
     Array.from(tbodyEl.querySelectorAll('tr')).forEach(function (tr) {
-      const corrVal = (tr.dataset.filterValue || '').toLowerCase();
-      const msgVal = (tr.dataset.msgValue || '').toLowerCase();
-      const matchCorr = q === '' || corrVal.includes(q);
-      const matchMsg = qMsg === '' || msgVal.includes(qMsg);
-      let matchTs = true;
+      let visible = true;
+
+      // Per-filter text matching (each filter has its own CI flag)
+      activeFilters.forEach(function (f, i) {
+        const raw = f.inputEl.value;
+        if (!raw) { return; }
+        const sensitive = f.ciRef();
+        const query = sensitive ? raw : raw.toLowerCase();
+        const cellRaw = tr.dataset['filter' + i] || '';
+        const cellVal = sensitive ? cellRaw : cellRaw.toLowerCase();
+        if (!cellVal.includes(query)) { visible = false; }
+      });
+
+      // Timestamp range
       if (activeFilterByTs && tr.dataset.ts) {
         const rowMs = new Date(tr.dataset.ts).getTime();
-        if (fromMs !== null && rowMs < fromMs) { matchTs = false; }
-        if (toMs !== null && rowMs > toMs) { matchTs = false; }
+        if (fromMs !== null && rowMs < fromMs) { visible = false; }
+        if (toMs !== null && rowMs > toMs) { visible = false; }
       }
-      tr.style.display = (matchCorr && matchMsg && matchTs) ? '' : 'none';
+
+      tr.style.display = visible ? '' : 'none';
     });
   }
+
+  // Build filter inputs from filters descriptor array
+  function buildFilterInputs(filters) {
+    filterInputsEl.innerHTML = '';
+    activeFilters = [];
+
+    (filters || []).forEach(function (f, i) {
+      const wrapper = document.createElement('div');
+      const label = document.createElement('label');
+      label.style.cssText = 'display:block; font-size:0.8em; opacity:0.6; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.05em;';
+      label.textContent = f.label;
+
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; align-items:center; gap:6px;';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Filter by ' + f.label.toLowerCase() + '…';
+      input.style.cssText = 'width:220px; padding:4px 8px; background:var(--vscode-input-background); color:var(--vscode-input-foreground); border:1px solid var(--vscode-input-border,#555); border-radius:3px; font-size:inherit;';
+
+      // Aa = match case toggle — off by default (case insensitive)
+      let matchCase = false;
+      const ciBtn = document.createElement('button');
+      ciBtn.textContent = 'Aa';
+      ciBtn.title = 'Match case';
+      ciBtn.style.cssText = 'padding:3px 7px; font-size:0.8em; border-radius:3px; cursor:pointer; border:1px solid var(--vscode-input-border,#555); font-family:inherit; transition: opacity 0.1s;';
+      function updateCiStyle() {
+        ciBtn.style.background = matchCase
+          ? 'var(--vscode-button-background)' : 'var(--vscode-input-background)';
+        ciBtn.style.color = matchCase
+          ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)';
+        ciBtn.style.opacity = matchCase ? '1' : '0.5';
+      }
+      updateCiStyle();
+      ciBtn.addEventListener('click', function () {
+        matchCase = !matchCase;
+        updateCiStyle();
+        applyFilters();
+      });
+
+      input.addEventListener('input', function () {
+        // Strip whitespace for correlation-id-style filters (first filter only by convention)
+        if (i === 0 && filters.length > 1) {
+          const cleaned = input.value.replace(/[ \t\r\n]+/g, '');
+          if (cleaned !== input.value) { input.value = cleaned; }
+        }
+        applyFilters();
+      });
+
+      row.appendChild(input);
+      row.appendChild(ciBtn);
+      wrapper.appendChild(label);
+      wrapper.appendChild(row);
+      filterInputsEl.appendChild(wrapper);
+      activeFilters.push({ columnIndex: f.columnIndex, inputEl: input, ciRef: function() { return matchCase; } });
+    });
+  }
+
+  if (tsFrom) { tsFrom.addEventListener('input', applyFilters); }
+  if (tsTo) { tsTo.addEventListener('input', applyFilters); }
+
+  // ── Save (application edit) ──────────────────────────────────────────────────
 
   saveBtn.addEventListener('click', function () {
     if (!activeAppId) { return; }
@@ -76,14 +147,7 @@
     vscode.postMessage({ type: 'patch', appId: activeAppId, payload: payload });
   });
 
-  filterInput.addEventListener('input', function () {
-    const cleaned = filterInput.value.replace(/[ \t\r\n]+/g, '');
-    if (cleaned !== filterInput.value) { filterInput.value = cleaned; }
-    applyFilters();
-  });
-  filterMsg.addEventListener('input', applyFilters);
-  tsFrom.addEventListener('input', applyFilters);
-  tsTo.addEventListener('input', applyFilters);
+  // ── HTML helpers ─────────────────────────────────────────────────────────────
 
   function escapeHtml(s) {
     return String(s)
@@ -116,41 +180,100 @@
     }
   }
 
+  // ── Resizable columns ────────────────────────────────────────────────────────
+
+  let colgroup = null;
+
+  function buildColgroup(count) {
+    if (colgroup) { colgroup.remove(); }
+    colgroup = document.createElement('colgroup');
+    for (let i = 0; i < count; i++) {
+      colgroup.appendChild(document.createElement('col'));
+    }
+    tableEl.insertBefore(colgroup, tableEl.firstChild);
+  }
+
+  function attachResizeHandles(columns) {
+    const ths = Array.from(theadRow.querySelectorAll('th'));
+    ths.forEach(function (th, i) {
+      const handle = document.createElement('div');
+      handle.className = 'col-resize-handle';
+      th.appendChild(handle);
+
+      handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        handle.classList.add('dragging');
+        const startX = e.clientX;
+        const startWidth = th.offsetWidth;
+
+        function onMove(e) {
+          const col = colgroup && colgroup.querySelectorAll('col')[i];
+          if (col) {
+            col.style.width = Math.max(40, startWidth + e.clientX - startX) + 'px';
+          }
+        }
+        function onUp() {
+          handle.classList.remove('dragging');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+  }
+
+  // ── Row click ────────────────────────────────────────────────────────────────
+
   tbodyEl.addEventListener('click', function (e) {
     const tr = e.target.closest('tr');
     if (!tr || !tr.dataset.clickable || !tr.dataset.id) { return; }
     vscode.postMessage({ type: 'itemClick', id: tr.dataset.id });
   });
 
+  // ── Message handler ──────────────────────────────────────────────────────────
+
   window.addEventListener('message', function (event) {
     const msg = event.data;
+
     if (msg.type === 'loading') {
       statusEl.textContent = 'Loading…';
       tableEl.style.display = 'none';
       return;
     }
+
     if (msg.type === 'error') {
       statusEl.textContent = 'Error: ' + msg.message;
       tableEl.style.display = 'none';
       return;
     }
+
     if (msg.type === 'update') {
       const wasSaving = saveStatus && saveStatus.textContent === 'Saving…';
-      activeFilterBy = msg.filterBy;
-      activeFilterByMsg = msg.filterByMessage;
-      statusEl.textContent = '';
+
+      // ── Header + colgroup ──
       theadRow.innerHTML = '';
-      (msg.columns || []).forEach(function (col) {
+      const columns = msg.columns || [];
+      columns.forEach(function (col) {
         const th = document.createElement('th');
         th.textContent = col;
         theadRow.appendChild(th);
       });
+      buildColgroup(columns.length);
+      attachResizeHandles(columns);
+
+      // ── Filters ──
+      const filters = msg.filters || [];
       activeFilterByTs = !!msg.filterByTs;
-      const hasFilter = activeFilterBy !== undefined || activeFilterByMsg !== undefined || activeFilterByTs;
+      buildFilterInputs(filters);
+      const hasFilter = filters.length > 0 || activeFilterByTs;
       filterBar.style.display = hasFilter ? 'block' : 'none';
-      corrFilter.style.display = activeFilterBy !== undefined ? 'block' : 'none';
-      msgFilter.style.display = activeFilterByMsg !== undefined ? 'block' : 'none';
-      tsFilter.style.display = activeFilterByTs ? 'block' : 'none';
+      if (tsFilter) {
+        tsFilter.style.display = activeFilterByTs ? 'block' : 'none';
+      }
+
+      // ── Rows ──
+      statusEl.textContent = '';
       tbodyEl.innerHTML = '';
       (msg.rows || []).forEach(function (row) {
         const tr = document.createElement('tr');
@@ -158,12 +281,12 @@
         if (row.meta && row.meta.clickable) {
           tr.dataset.clickable = '1';
         }
-        if (activeFilterBy !== undefined && row.cells[activeFilterBy]) {
-          tr.dataset.filterValue = row.cells[activeFilterBy].value || '';
-        }
-        if (activeFilterByMsg !== undefined && row.cells[activeFilterByMsg]) {
-          tr.dataset.msgValue = row.cells[activeFilterByMsg].value || '';
-        }
+        // Attach filter data attributes for each active filter
+        activeFilters.forEach(function (f, i) {
+          if (row.cells[f.columnIndex]) {
+            tr.dataset['filter' + i] = row.cells[f.columnIndex].value || '';
+          }
+        });
         if (activeFilterByTs && row.meta && row.meta.ts) {
           tr.dataset.ts = row.meta.ts;
         }
@@ -174,11 +297,14 @@
         });
         tbodyEl.appendChild(tr);
       });
+
       tableEl.style.display = msg.rows && msg.rows.length > 0 ? '' : 'none';
       if (!msg.rows || msg.rows.length === 0) {
         statusEl.textContent = 'No items.';
       }
       applyFilters();
+
+      // ── Edit config ──
       activeAppId = msg.editConfig ? msg.editConfig.appId : undefined;
       saveBar.style.display = msg.editConfig ? 'flex' : 'none';
       if (msg.editConfig) {
@@ -205,6 +331,8 @@
         });
         saveBtn.disabled = true;
       }
+
+      // ── Extra sections ──
       extraSectionsEl.innerHTML = '';
       (msg.extraSections || []).forEach(function (section) {
         const wrapper = document.createElement('div');

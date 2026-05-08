@@ -452,9 +452,15 @@ export type ThreatFactUpsertPayload = {
 export type PersonFromApi = {
   id: string;
   external_id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
+  full_name: string;
+};
+
+/** GET /api/v0/persons/{id}/attributes */
+export type PersonAttributeFromApi = {
+  id: string;
+  person_id: string;
+  key: string;
+  value: string;
 };
 
 // ─── Inventory: Employee ────────────────────────────────────────────────────
@@ -462,11 +468,17 @@ export type PersonFromApi = {
 /** GET /api/v0/employees / GET /api/v0/employees/{id} */
 export type EmployeeFromApi = {
   id: string;
-  external_id: string;
-  person_id: string | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
+  person_id: string;
+  is_locked: boolean;
+  description: string | null;
+};
+
+/** GET /api/v0/employees/{id}/attributes */
+export type EmployeeAttributeFromApi = {
+  id: string;
+  employee_id: string;
+  key: string;
+  value: string;
 };
 
 // ─── Inventory: NHI ─────────────────────────────────────────────────────────

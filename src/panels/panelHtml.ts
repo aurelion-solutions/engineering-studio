@@ -40,23 +40,15 @@ export function renderPanelHtml(_nonce: string, cspSource: string, scriptUri: st
     .status-offline { background: rgba(248, 81, 73, 0.15); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.3); opacity: 0.85; }
     tbody tr[data-clickable] { cursor: pointer; }
     tbody tr[data-clickable]:hover { background: var(--vscode-list-hoverBackground, rgba(255,255,255,0.05)); }
+    th { position: relative; user-select: none; }
+    .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 1; }
+    .col-resize-handle:hover, .col-resize-handle.dragging { background: var(--vscode-focusBorder, #007fd4); opacity: 0.6; }
   </style>
 </head>
 <body>
   <div id="status">Loading…</div>
   <div id="filter-bar" style="display:none; padding: 0 0 10px;">
-    <div style="display:flex; gap:16px; flex-wrap:wrap;">
-      <div id="corr-filter" style="display:none;">
-        <label style="display:block; font-size:0.8em; opacity:0.6; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.05em;">Correlation ID</label>
-        <input id="filter-input" type="text" placeholder="Filter by correlation ID…"
-          style="width:260px; padding:4px 8px; background:var(--vscode-input-background); color:var(--vscode-input-foreground); border:1px solid var(--vscode-input-border,#555); border-radius:3px; font-size:inherit;" />
-      </div>
-      <div id="msg-filter" style="display:none;">
-        <label style="display:block; font-size:0.8em; opacity:0.6; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.05em;">Message</label>
-        <input id="filter-msg" type="text" placeholder="Filter by message…"
-          style="width:260px; padding:4px 8px; background:var(--vscode-input-background); color:var(--vscode-input-foreground); border:1px solid var(--vscode-input-border,#555); border-radius:3px; font-size:inherit;" />
-      </div>
-    </div>
+    <div id="filter-inputs" style="display:flex; gap:16px; flex-wrap:wrap;"></div>
     <div id="ts-filter" style="display:none;">
       <hr style="border:none; border-top:1px solid var(--vscode-panel-border,#444); margin: 4px 0 8px;" />
       <label style="display:block; font-size:0.8em; opacity:0.6; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">Time Period (UTC)</label>

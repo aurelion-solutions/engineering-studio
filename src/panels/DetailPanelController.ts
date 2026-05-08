@@ -21,7 +21,9 @@ import {
   fetchAccessUsageFacts,
   fetchThreatFacts,
   fetchPersons,
+  fetchPersonAttributes,
   fetchEmployees,
+  fetchEmployeeAttributes,
   fetchNHIs,
   fetchEmployeeRecords,
   fetchCapabilities,
@@ -338,8 +340,8 @@ export class DetailPanelController implements vscode.Disposable {
     void entry.panel.webview.postMessage({ type: "loading" });
 
     try {
-      const { rows, columns, filterBy, filterByMessage, filterByTs, extraSections, editConfig } = await this._fetchAndBuild(args);
-      void entry.panel.webview.postMessage({ type: "update", columns, rows, filterBy, filterByMessage, filterByTs, extraSections, editConfig });
+      const { rows, columns, filters, filterByTs, extraSections, editConfig } = await this._fetchAndBuild(args);
+      void entry.panel.webview.postMessage({ type: "update", columns, rows, filters, filterByTs, extraSections, editConfig });
     } catch (err) {
       this.extensionChannel.error(`DetailPanelController: fetch error for ${key}`, String(err));
       void entry.panel.webview.postMessage({
@@ -359,7 +361,7 @@ export class DetailPanelController implements vscode.Disposable {
 
   private async _fetchAndBuild(
     args: PanelOpenArgs,
-  ): Promise<{ rows: PanelRow[]; columns: string[]; filterBy?: number; filterByMessage?: number; filterByTs?: boolean; extraSections?: Section[]; editConfig?: EditConfig }> {
+  ): Promise<{ rows: PanelRow[]; columns: string[]; filters?: Array<{ label: string; columnIndex: number }>; filterByTs?: boolean; extraSections?: Section[]; editConfig?: EditConfig }> {
     switch (args.kind) {
       case "application": {
         const [apps, connectors] = await Promise.all([
@@ -387,12 +389,32 @@ export class DetailPanelController implements vscode.Disposable {
         }
         const fetcherName = catDef.fetcherName as InventoryCategoryFetcherName;
         const fetcher = INVENTORY_FETCHERS[fetcherName];
-        const items = await fetcher();
         const panelKey = `${args.kind}:${args.ctxKey}`;
+
+        let items = await fetcher();
+
+        if (args.categoryKey === "employees") {
+          const persons = await fetchPersons().catch(() => []);
+          const personMap = new Map(persons.map((p) => [p.id, p]));
+          items = (items as Record<string, unknown>[]).map((emp) => {
+            const personId = emp["person_id"] as string | undefined;
+            const person = personId ? personMap.get(personId) : undefined;
+            return { ...emp, _person_full_name: person?.full_name ?? "" };
+          });
+        }
+
         this._itemCache.set(panelKey, items as Record<string, unknown>[]);
+        const cols = inventoryColumns(args.categoryKey);
+        const nameFilters: Array<{ label: string; columnIndex: number }> =
+          args.categoryKey === "persons"
+            ? [{ label: "Full Name", columnIndex: cols.indexOf("Full Name") }]
+            : args.categoryKey === "employees"
+            ? [{ label: "Person", columnIndex: cols.indexOf("Person") }]
+            : [];
         return {
           rows: buildInventoryRows(args.categoryKey, items),
-          columns: inventoryColumns(),
+          columns: cols,
+          filters: nameFilters.length > 0 ? nameFilters : undefined,
         };
       }
 
@@ -414,6 +436,12 @@ export class DetailPanelController implements vscode.Disposable {
 
       case "itemDetail": {
         const extraSections: Section[] = [];
+
+        // Strip synthetic enrichment fields before rendering main detail rows
+        const cleanItem = Object.fromEntries(
+          Object.entries(args.item).filter(([k]) => !k.startsWith("_")),
+        );
+
         if (args.categoryKey === "sodRules" && typeof args.item["id"] === "number") {
           const [conditions, caps] = await Promise.all([
             fetchSodRuleConditions(args.item["id"] as number),
@@ -421,8 +449,61 @@ export class DetailPanelController implements vscode.Disposable {
           ]);
           extraSections.push(buildSodConditionsSection(conditions, caps));
         }
+
+        if (args.categoryKey === "persons" && typeof args.item["id"] === "string") {
+          const attrs = await fetchPersonAttributes(args.item["id"]).catch(() => []);
+          extraSections.push({
+            title: "Attributes",
+            columns: ["Key", "Value"],
+            rows: attrs.length > 0
+              ? attrs.map((a) => ({
+                  id: a.id,
+                  cells: [
+                    { kind: "kv" as const, value: a.key },
+                    { kind: "text" as const, value: a.value },
+                  ],
+                }))
+              : [{ id: "no-attrs", cells: [{ kind: "text" as const, value: "No attributes" }, { kind: "text" as const, value: "" }] }],
+          });
+        }
+
+        if (args.categoryKey === "employees" && typeof args.item["id"] === "string") {
+          const personId = args.item["person_id"] as string | undefined;
+          const [attrs, persons] = await Promise.all([
+            fetchEmployeeAttributes(args.item["id"]).catch(() => []),
+            personId ? fetchPersons().catch(() => []) : Promise.resolve([]),
+          ]);
+          const person = personId ? persons.find((p) => p.id === personId) : undefined;
+
+          if (person) {
+            extraSections.push({
+              title: "Person",
+              columns: ["Field", "Value"],
+              rows: [
+                { id: "p-id",  cells: [{ kind: "kv" as const, value: "id" },           { kind: "text" as const, value: person.id }] },
+                { id: "p-ext", cells: [{ kind: "kv" as const, value: "external_id" },   { kind: "text" as const, value: person.external_id }] },
+                { id: "p-nm",  cells: [{ kind: "kv" as const, value: "full_name" },     { kind: "text" as const, value: person.full_name }] },
+              ],
+            });
+          }
+
+          extraSections.push({
+            title: "Attributes",
+            columns: ["Key", "Value"],
+            rows: attrs.length > 0
+              ? attrs.map((a) => ({
+                  id: a.id,
+                  cells: [
+                    { kind: "kv" as const, value: a.key },
+                    { kind: "text" as const, value: a.value },
+                  ],
+                }))
+              : [{ id: "no-attrs", cells: [{ kind: "text" as const, value: "No attributes" }, { kind: "text" as const, value: "" }] }],
+          });
+        }
+
         return {
-          rows: buildItemDetailRows(args.item),
+          rows: buildItemDetailRows(cleanItem),
           columns: itemDetailColumns(),
           extraSections,
         };
@@ -457,8 +538,10 @@ export class DetailPanelController implements vscode.Disposable {
         return {
           rows: buildLogsRows(logs),
           columns: cols,
-          filterBy: cols.indexOf("Correlation ID"),
-          filterByMessage: cols.indexOf("Message"),
+          filters: [
+            { label: "Correlation ID", columnIndex: cols.indexOf("Correlation ID") },
+            { label: "Message", columnIndex: cols.indexOf("Message") },
+          ],
           filterByTs: true,
         };
       }

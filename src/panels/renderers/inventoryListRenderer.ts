@@ -13,7 +13,13 @@ export function inventoryTitle(ctx: PanelOpenArgs): string {
   return ctx.label;
 }
 
-export function inventoryColumns(): string[] {
+export function inventoryColumns(categoryKey?: string): string[] {
+  if (categoryKey === "persons") {
+    return ["ID", "External ID", "Full Name"];
+  }
+  if (categoryKey === "employees") {
+    return ["ID", "Person", "Locked"];
+  }
   return ["ID", "Name", "Description", "Updated"];
 }
 
@@ -22,6 +28,8 @@ export function buildInventoryRows(
   data: unknown[],
 ): PanelRow[] {
   const catDef = INVENTORY_CATEGORIES.find((c) => c.key === categoryKey);
+  const isPersons = categoryKey === "persons";
+  const isEmployees = categoryKey === "employees";
 
   return data.map((row, idx) => {
     let id = "";
@@ -35,7 +43,6 @@ export function buildInventoryRows(
       try { desc = catDef.columns.desc(row); } catch { desc = ""; }
       try { ts = catDef.columns.ts(row); } catch { ts = ""; }
     } else {
-      // Fallback: generic field extraction
       const r = row as Record<string, unknown>;
       id = String(r["id"] ?? idx);
       name = String(r["external_id"] ?? r["name"] ?? "");
@@ -43,11 +50,37 @@ export function buildInventoryRows(
       ts = String(r["updated_at"] ?? r["created_at"] ?? "");
     }
 
+    const shortId = id.length > 8 ? id.slice(0, 8) + "…" : id;
+
+    if (isPersons) {
+      return {
+        id: id || String(idx),
+        meta: { clickable: "1" },
+        cells: [
+          { kind: "text" as const, value: shortId },
+          { kind: "text" as const, value: name },
+          { kind: "text" as const, value: desc },
+        ],
+      };
+    }
+
+    if (isEmployees) {
+      return {
+        id: id || String(idx),
+        meta: { clickable: "1" },
+        cells: [
+          { kind: "text" as const, value: shortId },
+          { kind: "text" as const, value: name },
+          { kind: desc ? "badge" as const : "text" as const, value: desc },
+        ],
+      };
+    }
+
     return {
       id: id || String(idx),
       meta: { clickable: "1" },
       cells: [
-        { kind: "text" as const, value: id.length > 8 ? id.slice(0, 8) + "…" : id },
+        { kind: "text" as const, value: shortId },
         { kind: "text" as const, value: name },
         { kind: "text" as const, value: desc },
         { kind: "ts" as const, value: ts },

@@ -186,8 +186,8 @@ export const INVENTORY_CATEGORIES: InventoryCategoryDef[] = [
     columns: {
       id: (row) => str(r(row)["id"]),
       name: (row) => str(r(row)["external_id"]),
-      desc: (row) => str(r(row)["status"] ?? ""),
-      ts: (row) => str(r(row)["updated_at"]),
+      desc: (row) => str(r(row)["full_name"]),
+      ts: () => "",
     },
   },
   {
@@ -196,9 +196,9 @@ export const INVENTORY_CATEGORIES: InventoryCategoryDef[] = [
     fetcherName: "fetchEmployees",
     columns: {
       id: (row) => str(r(row)["id"]),
-      name: (row) => str(r(row)["external_id"]),
-      desc: (row) => str(r(row)["status"] ?? ""),
-      ts: (row) => str(r(row)["updated_at"]),
+      name: (row) => str(r(row)["_person_full_name"]),
+      desc: (row) => (r(row)["is_locked"] ? "locked" : ""),
+      ts: () => "",
     },
   },
   {

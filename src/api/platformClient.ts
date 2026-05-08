@@ -1111,7 +1111,36 @@ export async function fetchPersons(params?: {
   return data as PersonFromApi[];
 }
 
+export async function fetchPersonAttributes(
+  id: string,
+): Promise<import("./types").PersonAttributeFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/persons/${id}/attributes`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Person attributes request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  return res.json() as Promise<import("./types").PersonAttributeFromApi[]>;
+}
+
 // ─── Employee client methods ──────────────────────────────────────────────────
+
+export async function fetchEmployeeAttributes(
+  id: string,
+): Promise<import("./types").EmployeeAttributeFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/employees/${id}/attributes`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Employee attributes request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  return res.json() as Promise<import("./types").EmployeeAttributeFromApi[]>;
+}
+
 
 export async function fetchEmployees(params?: {
   limit?: number;
