@@ -9,7 +9,6 @@ function makeEvent(overrides: Partial<LogBufferEvent>): LogBufferEvent {
   return {
     id: "test-id",
     event_id: "evt-1",
-    event_type: "test.event",
     timestamp: "2026-04-15T12:34:56.789Z",
     level: "info",
     message: "test message",
@@ -116,67 +115,17 @@ describe("formatLogLine — timestamp", () => {
   });
 });
 
-// ─── line 1 — event_type and title ───────────────────────────────────────────
+// ─── line 1 — message ────────────────────────────────────────────────────────
 
-describe("formatLogLine — event_type segment", () => {
-  it("non-connector event → event_type — message", () => {
-    const [line1] = formatLogLine(
-      makeEvent({ event_type: "user.created", message: "User was created" }),
-    );
-    // em-dash U+2014
-    assert.ok(
-      line1.includes("user.created \u2014 User was created"),
-      `got: ${line1}`,
-    );
-  });
-
-  it("event_type absent (empty string) → no event_type segment", () => {
-    const [line1] = formatLogLine(
-      makeEvent({ event_type: "", message: "bare message" }),
-    );
-    assert.ok(!line1.includes("\u2014"), `should have no em-dash, got: ${line1}`);
-    assert.ok(line1.includes("bare message"), `got: ${line1}`);
-  });
-
-  it("connector.command.received → display title on line1", () => {
-    const [line1] = formatLogLine(
-      makeEvent({
-        event_type: "connector.command.received",
-        payload: {},
-        message: "fallback",
-      }),
-    );
-    assert.ok(
-      line1.includes("Command received"),
-      `expected 'Command received', got: ${line1}`,
-    );
-  });
-
-  it("connector.command.completed + operation payload → subtype in title", () => {
-    const [line1] = formatLogLine(
-      makeEvent({
-        event_type: "connector.command.completed",
-        payload: { operation: "sync_accounts" },
-        message: "fallback",
-      }),
-    );
-    assert.ok(
-      line1.includes("Command completed \u00b7 sync accounts") ||
-        line1.includes("Command completed · sync accounts"),
-      `expected subtype in title, got: ${line1}`,
-    );
-  });
-
-  it("non-connector event → message used as title (not display title)", () => {
-    const [line1] = formatLogLine(
-      makeEvent({ event_type: "log.stream.recovered", message: "Recovered OK" }),
-    );
-    assert.ok(line1.includes("Recovered OK"), `got: ${line1}`);
+describe("formatLogLine — message on line1", () => {
+  it("message rendered on line1", () => {
+    const [line1] = formatLogLine(makeEvent({ message: "User was created" }));
+    assert.ok(line1.includes("User was created"), `got: ${line1}`);
   });
 
   it("control chars in message are sanitized on line1", () => {
     const [line1] = formatLogLine(
-      makeEvent({ message: "line\nwith\nnewlines", event_type: "" }),
+      makeEvent({ message: "line\nwith\nnewlines" }),
     );
     assert.ok(!line1.includes("\n"), "line1 must not contain newlines");
     assert.ok(line1.includes("line with newlines"), `got: ${line1}`);
@@ -199,7 +148,7 @@ describe("formatLogLine — correlation_id on line2", () => {
   it("empty correlation_id → correlation_id=—", () => {
     const [, line2] = formatLogLine(makeEvent({ correlation_id: "" }));
     assert.ok(
-      line2.includes("correlation_id=\u2014"),
+      line2.includes("correlation_id=—"),
       `got: ${line2}`,
     );
   });
@@ -207,7 +156,7 @@ describe("formatLogLine — correlation_id on line2", () => {
   it("whitespace-only correlation_id → correlation_id=—", () => {
     const [, line2] = formatLogLine(makeEvent({ correlation_id: "   " }));
     assert.ok(
-      line2.includes("correlation_id=\u2014"),
+      line2.includes("correlation_id=—"),
       `got: ${line2}`,
     );
   });
@@ -280,7 +229,6 @@ describe("formatLogLine — line2 format contract", () => {
       makeEvent({
         level: "error",
         timestamp: "2026-01-01T00:00:00.000Z",
-        event_type: "app.error",
         message: "boom",
         correlation_id: "corr-42",
         initiator_type: "user",
@@ -293,7 +241,7 @@ describe("formatLogLine — line2 format contract", () => {
     );
     assert.strictEqual(
       line1,
-      "[ERROR] 00:00:00.000 app.error \u2014 boom",
+      "[ERROR] 00:00:00.000 boom",
     );
     assert.strictEqual(
       line2,
@@ -310,11 +258,9 @@ describe("buildSyntheticLogEvent", () => {
     const ev = buildSyntheticLogEvent({
       level: "info",
       timestamp: "2026-04-15T10:00:00.000Z",
-      event_type: "log.stream.recovered",
       message: "Log stream recovered",
     });
     assert.strictEqual(ev.level, "info");
-    assert.strictEqual(ev.event_type, "log.stream.recovered");
     assert.strictEqual(ev.message, "Log stream recovered");
     assert.strictEqual(ev.component, "engineering-studio");
     assert.strictEqual(ev.correlation_id, "");
@@ -322,18 +268,13 @@ describe("buildSyntheticLogEvent", () => {
     assert.deepStrictEqual(ev.payload, {});
   });
 
-  it("synthetic id contains event_type and timestamp", () => {
+  it("synthetic id contains timestamp", () => {
     const ts = "2026-04-15T10:00:00.000Z";
     const ev = buildSyntheticLogEvent({
       level: "info",
       timestamp: ts,
-      event_type: "log.stream.recovered",
       message: "x",
     });
-    assert.ok(
-      ev.id.includes("log.stream.recovered"),
-      `id should contain event_type: ${ev.id}`,
-    );
     assert.ok(ev.id.includes(ts), `id should contain timestamp: ${ev.id}`);
   });
 
@@ -341,12 +282,11 @@ describe("buildSyntheticLogEvent", () => {
     const ev = buildSyntheticLogEvent({
       level: "info",
       timestamp: "2026-04-15T10:00:00.000Z",
-      event_type: "log.stream.recovered",
       message: "Log stream recovered",
     });
     const lines = formatLogLine(ev);
     assert.strictEqual(lines.length, 3);
     // empty correlation_id → em-dash
-    assert.ok(lines[1].includes("correlation_id=\u2014"), `got: ${lines[1]}`);
+    assert.ok(lines[1].includes("correlation_id=—"), `got: ${lines[1]}`);
   });
 });

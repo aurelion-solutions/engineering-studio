@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- `event_type` field from `LogBufferEvent` and `PlatformLogEntry` TypeScript types — mirrors kernel wire contract removal (Phase 17 Step 4).
+- `event_type` parameter from `buildSyntheticLogEvent` — synthetic id is now `synthetic:<timestamp>` (was `synthetic:<event_type>:<timestamp>`).
+- Connector-command display-title path on line1 of `formatLogLine` — `connector.command.*` log lines now render with `message` only (cosmetic regression: the humanized title, e.g. "Command received · sync accounts", is no longer shown since `event_type` is gone from the wire).
+
 ## [0.2.3] - 2026-04-27
 
 ### Added

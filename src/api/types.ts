@@ -43,7 +43,6 @@ export type ConnectorInstanceFromApi = {
 export type LogBufferEvent = {
   id: string;
   event_id: string;
-  event_type: string;
   timestamp: string;
   level: string;
   message: string;
@@ -81,7 +80,6 @@ export type PlatformEventEntry = {
 export type PlatformLogEntry = {
   id: string;
   event_id: string;
-  event_type: string | null;
   timestamp: string;
   level: string;
   message: string;

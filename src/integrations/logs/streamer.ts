@@ -218,7 +218,6 @@ export class LogStreamer implements vscode.Disposable {
             buildSyntheticLogEvent({
               level: "info",
               timestamp: ts,
-              event_type: "log.stream.recovered",
               message: "Log stream recovered",
             }),
           );
@@ -248,7 +247,6 @@ export class LogStreamer implements vscode.Disposable {
             buildSyntheticLogEvent({
               level: "info",
               timestamp: ts,
-              event_type: "log.stream.recovered",
               message: "Log stream recovered",
             }),
           );

@@ -14,7 +14,6 @@ function makeEvent(overrides: Partial<LogBufferEvent>): LogBufferEvent {
   return {
     id: "test-id",
     event_id: "evt-1",
-    event_type: "test.event",
     timestamp: "2026-04-15T12:00:00.000Z",
     level: "info",
     message: "test",

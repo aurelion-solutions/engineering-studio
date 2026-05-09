@@ -57,7 +57,5 @@ export function formatIntegrationWhen(iso: string): string {
 }
 
 export function logEventPrimaryLine(ev: LogBufferEvent): string {
-  return (
-    connectorCommandDisplayTitle(ev.event_type, ev.payload) ?? ev.message
-  );
+  return ev.message;
 }

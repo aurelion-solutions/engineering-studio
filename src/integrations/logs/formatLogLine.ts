@@ -3,7 +3,7 @@
  *
  * Output format (Amendment C, D8):
  *
- *   [LEVEL] HH:MM:SS.sss <event_type> — <title>
+ *   [LEVEL] HH:MM:SS.sss <message>
  *           correlation_id=<uuid>  participants: <chain>
  *
  * Returns string[] of length 3: [line1, line2, ""].
@@ -15,10 +15,7 @@
 
 import type { LogBufferEvent } from "../../api/types";
 import { levelPrefixFor } from "./levelMap";
-import {
-  connectorCommandDisplayTitle,
-  formatParticipantChain,
-} from "./formatLogCard";
+import { formatParticipantChain } from "./formatLogCard";
 
 const INVALID_TIMESTAMP = "--:--:--.---";
 
@@ -44,7 +41,7 @@ function formatUtcTimestamp(iso: string): string {
  * Use this instead of `as LogBufferEvent` casts for synthetic / recovery events.
  *
  * Defaults:
- *   - id / event_id  → "synthetic:<event_type>:<timestamp>"
+ *   - id / event_id  → "synthetic:<timestamp>"
  *   - correlation_id → "" (renders as correlation_id=—)
  *   - causation_id   → null
  *   - payload        → {}
@@ -55,14 +52,12 @@ function formatUtcTimestamp(iso: string): string {
 export function buildSyntheticLogEvent(partial: {
   level: string;
   timestamp: string;
-  event_type: string;
   message: string;
 }): LogBufferEvent {
-  const syntheticId = `synthetic:${partial.event_type}:${partial.timestamp}`;
+  const syntheticId = `synthetic:${partial.timestamp}`;
   return {
     id: syntheticId,
     event_id: syntheticId,
-    event_type: partial.event_type,
     timestamp: partial.timestamp,
     level: partial.level,
     message: partial.message,
@@ -85,8 +80,7 @@ export function buildSyntheticLogEvent(partial: {
  *
  * Returns string[] of length 3: [line1, line2, ""].
  *
- * line1: [LEVEL] HH:MM:SS.sss <event_type> — <title>
- *        If event_type is absent/empty: [LEVEL] HH:MM:SS.sss <title>
+ * line1: [LEVEL] HH:MM:SS.sss <message>
  *
  * line2: (8 spaces)<correlation_id=...>  participants: <chain>
  *        correlation_id is "—" when null/undefined/empty.
@@ -98,26 +92,17 @@ export function formatLogLine(ev: LogBufferEvent): string[] {
   const prefix = levelPrefixFor(ev.level);
   const ts = formatUtcTimestamp(ev.timestamp);
 
-  // title: connector.command.* → display title; otherwise message
-  const rawTitle =
-    connectorCommandDisplayTitle(ev.event_type ?? "", ev.payload ?? {}) ??
-    ev.message;
-  const title = oneLine(rawTitle);
-
   // line 1
-  const eventType = (ev.event_type ?? "").trim();
-  const line1 =
-    eventType.length > 0
-      ? `[${prefix}] ${ts} ${eventType} \u2014 ${title}`
-      : `[${prefix}] ${ts} ${title}`;
+  const title = oneLine(ev.message);
+  const line1 = `[${prefix}] ${ts} ${title}`;
 
   // correlation_id
   const corrRaw = (ev.correlation_id ?? "").trim();
-  const corrOrDash = corrRaw.length > 0 ? corrRaw : "\u2014";
+  const corrOrDash = corrRaw.length > 0 ? corrRaw : "—";
 
   // participant chain
   const chainRaw = oneLine(formatParticipantChain(ev));
-  const chainOrDash = chainRaw.trim().length > 0 ? chainRaw : "\u2014";
+  const chainOrDash = chainRaw.trim().length > 0 ? chainRaw : "—";
 
   // line 2 — exactly 8 spaces indent, two spaces between kv pairs
   const line2 = `        correlation_id=${corrOrDash}  participants: ${chainOrDash}`;

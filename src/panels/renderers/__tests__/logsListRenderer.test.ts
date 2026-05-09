@@ -7,7 +7,6 @@ function makeLog(id: string, level: string, ts: string): PlatformLogEntry {
   return {
     id,
     event_id: `evt-${id}`,
-    event_type: null,
     timestamp: ts,
     level,
     message: "test message",
