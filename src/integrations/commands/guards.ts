@@ -87,6 +87,25 @@ export function isOpenDetailPanelArg(v: unknown): v is PanelOpenArgs {
       return typeof r["modelId"] === "string" && typeof r["label"] === "string";
     case "llmModelsList":
       return true;
+    case "pipelineRuns":
+      return typeof r["statusKey"] === "string"
+        && typeof r["label"] === "string";
+    case "pipelineRunDetail":
+      return typeof r["runId"] === "string" && typeof r["pipelineName"] === "string";
+    case "pipelineStepDetail":
+      return typeof r["runId"] === "string"
+        && typeof r["stepName"] === "string"
+        && typeof r["pipelineName"] === "string";
+    case "itemDetail":
+      return typeof r["parentKind"] === "string"
+        && typeof r["categoryKey"] === "string"
+        && typeof r["itemId"] === "string"
+        && typeof r["label"] === "string"
+        && typeof r["item"] === "object";
+    case "pipelineDefinitions":
+      return true;
+    case "pipelineDefinitionDetail":
+      return typeof r["name"] === "string";
     default:
       return false;
   }

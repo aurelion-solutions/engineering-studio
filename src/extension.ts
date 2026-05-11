@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as fs from "node:fs";
 import { ApplicationsTreeDataProvider } from "./integrations/applications/tree";
 import { InventoryTreeDataProvider } from "./integrations/inventory/tree";
 import { AccessAnalysisTreeDataProvider } from "./integrations/accessAnalysis/tree";
@@ -16,8 +17,13 @@ import { EventsTreeDataProvider } from "./integrations/events/tree";
 import { LogsLevelsTreeDataProvider } from "./integrations/logsLevels/tree";
 import { LlmTreeDataProvider } from "./integrations/llm/tree";
 import { InferencePanelController } from "./panels/InferencePanelController";
+import { TriggerRunPanelController } from "./panels/TriggerRunPanelController";
 import { LakeViewProvider } from "./integrations/lake/tree";
-import { fetchLakeBatches, fetchLakeStatus } from "./api/platformClient";
+import { fetchLakeBatches, fetchLakeStatus, getApiBaseUrl } from "./api/platformClient";
+import { PipelinesTreeDataProvider } from "./integrations/pipelines/tree";
+import { LiveSchemaCache } from "./integrations/pipelines/schema/liveSchemaCache";
+import { fetchLivePipelineSchema } from "./integrations/pipelines/schema/liveSchemaFetcher";
+import * as yamlSchemaContributor from "./integrations/pipelines/schema/yamlSchemaContributor";
 
 export function activate(context: vscode.ExtensionContext): void {
   // ─── Extension-level log channel ─────────────────────────────────────────────
@@ -100,6 +106,65 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(lakeProvider);
 
+  // ─── Pipelines tree ───────────────────────────────────────────────────────────
+  const pipelinesProvider = new PipelinesTreeDataProvider();
+  context.subscriptions.push(
+    vscode.window.createTreeView("aurelion.engineeringStudio.pipelinesView", {
+      treeDataProvider: pipelinesProvider,
+    }),
+  );
+  context.subscriptions.push(pipelinesProvider);
+
+  // ─── Live pipeline schema merge ───────────────────────────────────────────────
+  // Bundled schema loaded once at activation (25d-1 drift guard keeps it valid).
+  const bundledSchemaPath = context.asAbsolutePath(
+    "schemas/aurelion-pipeline.schema.json",
+  );
+  let bundledSchema: unknown;
+  try {
+    bundledSchema = JSON.parse(
+      fs.readFileSync(bundledSchemaPath, "utf8"),
+    ) as unknown;
+  } catch (err: unknown) {
+    extensionChannel.warn(
+      `pipeline_schema.bundled_schema_unreadable error=${String(err)}`,
+    );
+    bundledSchema = {};
+  }
+
+  const liveCache = new LiveSchemaCache();
+  const contributor = yamlSchemaContributor.register({
+    cache: liveCache,
+    bundled: bundledSchema,
+    extensionChannel,
+  });
+  context.subscriptions.push(contributor);
+
+  /** Redact userinfo (user:pass@) between "://" and host for safe logging. */
+  function redactUrl(url: string): string {
+    return url.replace(/(:\/{2})[^@/]*@/, "$1");
+  }
+
+  const refreshLiveSchema = async (): Promise<void> => {
+    const apiBaseUrl = getApiBaseUrl();
+    const result = await fetchLivePipelineSchema(apiBaseUrl);
+    if (result.ok) {
+      liveCache.setLive(result.schema);
+      contributor.notifyChanged();
+      extensionChannel.info(
+        `pipeline_schema.live_override_applied apiBaseUrl=${redactUrl(apiBaseUrl)} sizeBytes=${result.sizeBytes}`,
+      );
+    } else {
+      liveCache.clearLive();
+      contributor.notifyChanged();
+      extensionChannel.warn(
+        `pipeline_schema.fallback apiBaseUrl=${redactUrl(apiBaseUrl)} reason=${result.reason}`,
+      );
+    }
+  };
+
+  void refreshLiveSchema();
+
   // ─── LLM tree (Models + Inference) ───────────────────────────────────────────
   const llmProvider = new LlmTreeDataProvider();
   context.subscriptions.push(
@@ -115,6 +180,13 @@ export function activate(context: vscode.ExtensionContext): void {
     extensionUri: context.extensionUri,
   });
   context.subscriptions.push(inferencePanels);
+
+  // ─── Trigger run panel controller ────────────────────────────────────────────
+  const triggerRunPanels = new TriggerRunPanelController({
+    extensionChannel,
+    extensionUri: context.extensionUri,
+  });
+  context.subscriptions.push(triggerRunPanels);
 
   // ─── Status bar ──────────────────────────────────────────────────────────────
   const statusBar = new StatusBarController({
@@ -182,8 +254,34 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.refreshPipelines", () => {
+      pipelinesProvider.refresh();
+    }),
+  );
+
+  // Palette-hidden commands — dispatch happens exclusively through the panel
+  // webview message handler (pipelineAction). Registered here only to satisfy
+  // the package.json ↔ activate completeness gate.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.cancelPipelineRun", () => {
+      // no-op: invoked only via panel webview message, not the command palette
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.retryPipelineRun", () => {
+      // no-op: invoked only via panel webview message, not the command palette
+    }),
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand("aurelion.openInferencePanel", () => {
       inferencePanels.openOrReveal();
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("aurelion.triggerPipelineRun", () => {
+      triggerRunPanels.openOrReveal();
     }),
   );
 
@@ -425,7 +523,10 @@ export function activate(context: vscode.ExtensionContext): void {
         streamer.restartTick();
         detailPanels.refreshAll();
         inferencePanels.notifyApiBaseChanged();
+        triggerRunPanels.notifyApiBaseChanged();
         lakeProvider.refresh();
+        pipelinesProvider.refresh();
+        void refreshLiveSchema();
       }
       if (
         e.affectsConfiguration(

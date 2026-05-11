@@ -1,13 +1,19 @@
 import * as vscode from "vscode";
 import { renderPanelHtml } from "./panelHtml";
 import type { PanelOpenArgs, PanelRow } from "./types";
-import type { ApplicationFromApi } from "../api/types";
+import type { ApplicationFromApi, PipelineRunStatus } from "../api/types";
 import type { EditConfig, Section } from "./types";
 import {
   fetchApplications,
   fetchMatchingConnectorInstances,
   fetchPlatformEvents,
   fetchPlatformLogs,
+  fetchPipelineRuns,
+  fetchPipelineRunDetail,
+  fetchPipelineStepDetail,
+  fetchStepDetail,
+  cancelPipelineRun,
+  retryPipelineRun,
   updateApplication,
   fetchCustomers,
   fetchSubjects,
@@ -37,7 +43,11 @@ import {
   fetchFeedbacks,
   fetchLlmModels,
   fetchLlmExecutionProfiles,
+  fetchPipelines,
+  fetchPipelineDetail,
 } from "../api/platformClient";
+import { dispatchPipelineAction } from "./pipelineActionDispatch";
+import type { PipelineActionMsg } from "./pipelineActionDispatch";
 import { INVENTORY_CATEGORIES } from "../integrations/inventory/inventoryCategories";
 import type { InventoryCategoryFetcherName } from "../integrations/inventory/inventoryCategories";
 import { ACCESS_ANALYSIS_CATEGORIES } from "../integrations/accessAnalysis/accessAnalysisCategories";
@@ -82,6 +92,29 @@ import { buildEventsRows, eventsColumns } from "./renderers/eventsListRenderer";
 import { buildLogsRows, logsColumns } from "./renderers/logsListRenderer";
 import { buildItemDetailRows, itemDetailColumns, buildSodConditionsSection } from "./renderers/itemDetailRenderer";
 import { buildLlmModelRows, llmModelColumns, buildLlmModelProfilesSection } from "./renderers/llmModelRenderer";
+import { buildPipelineRunsRows, pipelineRunsColumns } from "./renderers/pipelineRunsListRenderer";
+import {
+  buildPipelineRunDetailHeaderRows,
+  pipelineRunDetailHeaderColumns,
+  buildPipelineRunDetailStepsSection,
+  buildPipelineRunDag,
+  TERMINAL_RUN_STATUSES,
+} from "./renderers/pipelineRunDetailRenderer";
+import {
+  buildPipelineStepDetailHeaderRows,
+  pipelineStepDetailHeaderColumns,
+} from "./renderers/pipelineStepDetailRenderer";
+import {
+  pipelineDefinitionsColumns,
+  buildPipelineDefinitionsRows,
+} from "./renderers/pipelineDefinitionsListRenderer";
+import {
+  pipelineDefinitionHeaderColumns,
+  buildPipelineDefinitionHeaderRows,
+  buildPipelineDefinitionTriggersSection,
+  buildPipelineDefinitionDag,
+} from "./renderers/pipelineDefinitionDetailRenderer";
+import type { DagDescriptor } from "./renderers/pipelineDefinitionDetailRenderer";
 import { levelsForMinimum } from "../integrations/logs/levelFilter";
 
 export type { PanelOpenArgs };
@@ -142,7 +175,23 @@ export class DetailPanelController implements vscode.Disposable {
     const scriptUri = panel.webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "panel-webview.js"),
     ).toString();
-    panel.webview.html = renderPanelHtml(nonce, panel.webview.cspSource, scriptUri);
+    const cytoscapeUri = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "cytoscape.min.js"),
+    ).toString();
+    const dagreUri = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "dagre.min.js"),
+    ).toString();
+    const cytoscapeDagreUri = panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "media", "cytoscape-dagre.js"),
+    ).toString();
+    panel.webview.html = renderPanelHtml({
+      nonce,
+      cspSource: panel.webview.cspSource,
+      scriptUri,
+      cytoscapeUri,
+      dagreUri,
+      cytoscapeDagreUri,
+    });
 
     const entry: PanelEntry = {
       panel,
@@ -152,7 +201,69 @@ export class DetailPanelController implements vscode.Disposable {
 
     this.panels.set(key, entry);
 
-    entry.messageDisposable = panel.webview.onDidReceiveMessage(async (msg: { type: string; appId?: string; payload?: Record<string, unknown>; id?: string }) => {
+    entry.messageDisposable = panel.webview.onDidReceiveMessage(async (msg: { type: string; appId?: string; payload?: Record<string, unknown>; id?: string; verb?: string; runId?: string; section?: string; stepName?: string; stepId?: string | null; message?: string }) => {
+      if (msg.type === "dagWarning" && typeof msg.message === "string") {
+        this.extensionChannel.warn(`[DAG] ${msg.message}`);
+        return;
+      }
+      if (msg.type === "dagNodeClick" && typeof msg.stepName === "string") {
+        this.extensionChannel.info(`DetailPanelController: dagNodeClick step="${msg.stepName}" panel="${key}"`);
+        // Lazy fetch for run-detail DAG node click. When stepId is null
+        // (orphan node — step never executed), the webview already has the
+        // sentinel including planned `definition_args` and renders it
+        // directly; we skip the round-trip and don't send `dagNodeDetail`
+        // (which would overwrite the richer client-side payload).
+        if (args.kind === "pipelineRunDetail") {
+          const stepId = msg.stepId ?? null;
+          const stepName = msg.stepName;
+          if (stepId === null) {
+            // No-op — webview handles orphan node locally.
+          } else {
+            try {
+              const detail = await fetchStepDetail(args.runId, stepId);
+              void entry.panel.webview.postMessage({
+                type: "dagNodeDetail",
+                stepName,
+                detail: {
+                  args: detail.args,
+                  result: detail.result,
+                  error: detail.error,
+                  status: detail.status,
+                  attempt: detail.attempt,
+                  started_at: detail.started_at,
+                  finished_at: detail.finished_at,
+                },
+              });
+            } catch (err) {
+              this.extensionChannel.error(`DetailPanelController: fetchStepDetail error for step=${stepId}`, String(err));
+              void entry.panel.webview.postMessage({
+                type: "dagNodeDetail",
+                stepName,
+                error: String(err),
+              });
+            }
+          }
+        }
+        return;
+      }
+      if (msg.type === "pipelineAction" && (msg.verb === "cancel" || msg.verb === "retry") && typeof msg.runId === "string") {
+        const actionMsg: PipelineActionMsg = { verb: msg.verb, runId: msg.runId };
+        await dispatchPipelineAction(
+          {
+            cancelFn: cancelPipelineRun,
+            retryFn: retryPipelineRun,
+            confirm: async (prompt) => {
+              const answer = await vscode.window.showWarningMessage(prompt, { modal: true }, "Confirm");
+              return answer === "Confirm";
+            },
+            showInfo: (message) => { void vscode.window.showInformationMessage(message); },
+            showError: (message) => { void vscode.window.showErrorMessage(message); },
+            logError: (message) => { this.extensionChannel.error(`DetailPanelController: pipeline action error`, message); },
+            refresh: () => { void this._refresh(key, args); },
+          },
+          actionMsg,
+        );
+      }
       if (msg.type === "patch" && msg.appId && msg.payload) {
         try {
           await updateApplication(msg.appId, msg.payload);
@@ -162,7 +273,38 @@ export class DetailPanelController implements vscode.Disposable {
           void entry.panel.webview.postMessage({ type: "error", message: String(err) });
         }
       }
+      if (msg.type === "stepClick" && typeof msg.id === "string" && msg.id.length > 0 && msg.section === "steps" && args.kind === "pipelineRunDetail") {
+        this.openOrReveal({
+          kind: "pipelineStepDetail",
+          ctxKey: `step:${args.runId}:${msg.id}`,
+          runId: args.runId,
+          stepName: msg.id,
+          pipelineName: args.pipelineName,
+        });
+        return;
+      }
       if (msg.type === "itemClick" && msg.id) {
+        if (args.kind === "pipelineRuns") {
+          const runs = this._itemCache.get(key) ?? [];
+          const run = runs.find((r) => String(r["id"]) === msg.id);
+          if (!run) { return; }
+          this.openOrReveal({
+            kind: "pipelineRunDetail",
+            ctxKey: `run:${msg.id}`,
+            runId: msg.id,
+            pipelineName: String(run["pipeline_name"] ?? msg.id.slice(0, 8)),
+            status: run["status"] as PipelineRunStatus | undefined,
+          });
+          return;
+        }
+        if (args.kind === "pipelineDefinitions") {
+          this.openOrReveal({
+            kind: "pipelineDefinitionDetail",
+            ctxKey: `pipeline-def:${msg.id}`,
+            name: msg.id,
+          });
+          return;
+        }
         const items = this._itemCache.get(key) ?? [];
         const item = items.find(
           (it) => String(it["id"]) === msg.id || String(it["external_id"]) === msg.id,
@@ -267,14 +409,30 @@ export class DetailPanelController implements vscode.Disposable {
       case "itemDetail": return args.label;
       case "llmModel": return `LLM Model: ${args.label}`;
       case "llmModelsList": return "LLM Models";
+      case "pipelineRuns": return `Pipeline runs · ${args.label}`;
+      case "pipelineRunDetail": return `Run · ${args.pipelineName} · ${args.runId.slice(0, 8)}`;
+      case "pipelineStepDetail": return `Step · ${args.pipelineName} · ${args.stepName}`;
+      case "pipelineDefinitions": return "Pipeline definitions";
+      case "pipelineDefinitionDetail": return `Pipeline · ${args.name}`;
     }
   }
 
   private _refreshSecsForArgs(args: PanelOpenArgs): number | null {
-    if (args.kind === "events" || args.kind === "logs") {
+    if (args.kind === "events" || args.kind === "logs" || args.kind === "pipelineRuns") {
       return this.refreshSecondsProvider();
     }
+    if (args.kind === "pipelineRunDetail") {
+      return args.status !== undefined && TERMINAL_RUN_STATUSES.has(args.status)
+        ? null
+        : this.refreshSecondsProvider();
+    }
     if (args.kind === "llmModel") {
+      return null;
+    }
+    if (args.kind === "pipelineStepDetail") {
+      return null;
+    }
+    if (args.kind === "pipelineDefinitions" || args.kind === "pipelineDefinitionDetail") {
       return null;
     }
     return null;
@@ -340,8 +498,8 @@ export class DetailPanelController implements vscode.Disposable {
     void entry.panel.webview.postMessage({ type: "loading" });
 
     try {
-      const { rows, columns, filters, filterByTs, extraSections, editConfig } = await this._fetchAndBuild(args);
-      void entry.panel.webview.postMessage({ type: "update", columns, rows, filters, filterByTs, extraSections, editConfig });
+      const { rows, columns, filters, filterByTs, extraSections, editConfig, dag, dagIsRunDag } = await this._fetchAndBuild(args);
+      void entry.panel.webview.postMessage({ type: "update", columns, rows, filters, filterByTs, extraSections, editConfig, dag, dagIsRunDag });
     } catch (err) {
       this.extensionChannel.error(`DetailPanelController: fetch error for ${key}`, String(err));
       void entry.panel.webview.postMessage({
@@ -361,7 +519,7 @@ export class DetailPanelController implements vscode.Disposable {
 
   private async _fetchAndBuild(
     args: PanelOpenArgs,
-  ): Promise<{ rows: PanelRow[]; columns: string[]; filters?: Array<{ label: string; columnIndex: number }>; filterByTs?: boolean; extraSections?: Section[]; editConfig?: EditConfig }> {
+  ): Promise<{ rows: PanelRow[]; columns: string[]; filters?: Array<{ label: string; columnIndex: number }>; filterByTs?: boolean; extraSections?: Section[]; editConfig?: EditConfig; dag?: DagDescriptor; dagIsRunDag?: boolean }> {
     switch (args.kind) {
       case "application": {
         const [apps, connectors] = await Promise.all([
@@ -575,6 +733,81 @@ export class DetailPanelController implements vscode.Disposable {
             ],
           })),
           columns: ["Name", "Provider", "Status"],
+        };
+      }
+
+      case "pipelineRuns": {
+        const runs = await fetchPipelineRuns({
+          status: [args.statusKey as PipelineRunStatus],
+          limit: 100,
+        });
+        const panelKey = `${args.kind}:${args.ctxKey}`;
+        this._itemCache.set(panelKey, runs as unknown as Record<string, unknown>[]);
+        return {
+          rows: buildPipelineRunsRows(runs),
+          columns: pipelineRunsColumns(),
+        };
+      }
+
+      case "pipelineRunDetail": {
+        const [detail, definition] = await Promise.all([
+          fetchPipelineRunDetail(args.runId),
+          fetchPipelineDetail(args.pipelineName).catch((err: unknown) => {
+            this.extensionChannel.error(
+              `DetailPanelController: fetchPipelineDetail failed for run ${args.runId}`,
+              String(err),
+            );
+            return null;
+          }),
+        ]);
+        const key = `${args.kind}:${args.ctxKey}`;
+        this._argsCache.set(key, { ...args, status: detail.status });
+        if (TERMINAL_RUN_STATUSES.has(detail.status)) {
+          const entry = this.panels.get(key);
+          if (entry?.timer !== undefined) {
+            clearInterval(entry.timer);
+            entry.timer = undefined;
+          }
+        }
+        const dag = definition !== null ? buildPipelineRunDag(detail, definition) : undefined;
+        return {
+          rows: buildPipelineRunDetailHeaderRows(detail),
+          columns: pipelineRunDetailHeaderColumns(),
+          extraSections: [buildPipelineRunDetailStepsSection(detail)],
+          dag,
+          dagIsRunDag: dag !== undefined,
+        };
+      }
+
+      case "pipelineStepDetail": {
+        const detail = await fetchPipelineStepDetail(args.runId, args.stepName);
+        return {
+          rows: buildPipelineStepDetailHeaderRows(detail),
+          columns: pipelineStepDetailHeaderColumns(),
+        };
+      }
+
+      case "pipelineDefinitions": {
+        const defs = await fetchPipelines();
+        const panelKey = `${args.kind}:${args.ctxKey}`;
+        this._itemCache.set(panelKey, defs as unknown as Record<string, unknown>[]);
+        return {
+          rows: buildPipelineDefinitionsRows(defs),
+          columns: pipelineDefinitionsColumns(),
+          extraSections: [],
+        };
+      }
+
+      case "pipelineDefinitionDetail": {
+        const detail = await fetchPipelineDetail(args.name);
+        const dag = buildPipelineDefinitionDag(detail);
+        return {
+          rows: buildPipelineDefinitionHeaderRows(detail),
+          columns: pipelineDefinitionHeaderColumns(),
+          extraSections: [
+            buildPipelineDefinitionTriggersSection(detail),
+          ],
+          dag,
         };
       }
     }

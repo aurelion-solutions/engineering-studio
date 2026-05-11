@@ -6,6 +6,91 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Cytoscape attribute selectors: removed spaces around `=` (`node[status="..."]`) — status colours were never applied since the DAG landed
+- Orphan step nodes (cancelled before start) now inherit run status via `inheritStatusFromRun`; `definition_args` propagated on sentinel for local render without extra round-trip
+- DAG controller: removed `stepId === null` guard branch; orphan args rendered entirely in webview
+
+### Changed
+
+- Engineering Studio: run-detail panel gains DAG with per-step status colouring; args/result panel moved below graph; cosmetic pass on node/edge styling.
+- DAG args panel repositioned below graph at full width (`#dag-container` flex-direction: column); new `#dag-args-title` element shows "Args for: <step name>" above JSON.
+- Cytoscape graph cosmetics: nodes padding 12, font-size 13, text-max-width 200, baseline border-width 2; edges 2px wide with `triangle-backcurve` arrowhead; hover cursor + `.hover` class via mouseover/mouseout. Dagre layout switched to `ranker: tight-tree`, nodeSep 40, rankSep 80. First-render animates 200ms; polling refreshes skip animation.
+
+### Added
+
+- JSON syntax highlighting in detail panels: new `"json"` `PanelCell` kind renders args/result via `formatJsonColored` (keys/strings/numbers/booleans/null coloured via VS Code theme vars). Applied to DAG args panel (definition + run) and `pipelineStepDetail` args/result rows.
+- Pipeline run-detail panel now shows a DAG with per-step `StepRunStatus` colouring (pending/running/awaiting_event/completed/failed/failed_timeout/aborted/cancelled) via VS Code theme vars. Topology fetched from pipeline definition in parallel with run detail (`Promise.all`); drift between run and current definition reported as warnings to Output Channel.
+- Lazy step-detail fetch on DAG node click: webview posts `dagNodeClick` with `stepId`; controller calls `fetchStepDetail` and replies with `dagNodeDetail`; args panel shows "Loading…" while fetch is in flight.
+- `fetchStepDetail(runId, stepId)` in platform client — `GET /api/v0/pipeline-runs/{run_id}/steps/{step_id}`.
+- `buildPipelineRunDag(run, definition)` pure builder in `pipelineRunDetailRenderer.ts`; `pipelineDagShared.ts` shared module with `DagDescriptor`, `DagNodeData`, `DagNodeKind`, `classifyStep`, `buildNodeLabel`.
+- DAG warnings forwarded from webview to `extensionChannel` via `dagWarning` postMessage.
+- Pipeline definition detail panel: Steps table replaced with interactive cytoscape DAG (click node → args JSON in side pane). Vendored `cytoscape`, `dagre`, and `cytoscape-dagre` UMD bundles in `media/`. Theme colors resolved via `getComputedStyle` (cytoscape canvas does not parse CSS `var()`).
+
+- Pipeline definitions drill-down (Step 25c-2c): click the Definitions TreeView node to list all loaded pipeline definitions; click a row to open a per-definition detail panel with Triggers and Steps sections.
+- `fetchPipelineDetail(name)` GET fetcher in platform client; `encodeURIComponent` on path segment; reuses `_extractErrorDetail`.
+- `PipelineDetailFromApi` type added to `api/types.ts`; `PipelineTriggerSpecFromApi` and `PipelineSummaryFromApi` realigned to kernel `orchestrator/schemas.py` (removed phantom `trigger`/`steps:string[]`/`kind`/`event_type`/`predicate` fields; added `type`, `routing_key`, `cron`, `every`, `match`, `args`, `schema_version`, `step_count`, `triggers[]`).
+- Two new pure renderers: `pipelineDefinitionsListRenderer.ts` (list with trigger summary logic) and `pipelineDefinitionDetailRenderer.ts` (header KV + Triggers section + Steps section with `wait_for_event` badge discriminator and `<unknown step kind>` fallback).
+- `PanelContentKind` extended with `"pipelineDefinitions"` and `"pipelineDefinitionDetail"`; `PanelOpenArgs` extended with matching shapes.
+- `DetailPanelController`: two new `case` branches in `_titleForArgs`, `_refreshSecsForArgs` (null — frozen at kernel startup), `_fetchAndBuild`; `itemClick` arm routes `section === "definitions"` → `pipelineDefinitionDetail`.
+- `PipelineDefinitionsNode` in `tree.ts` now carries `command: aurelion.openDetailPanel` with `{ kind: "pipelineDefinitions", ctxKey: "pipeline-definitions" }` args; `contextValue` unchanged.
+- `isOpenDetailPanelArg` guard extended with `pipelineDefinitions` and `pipelineDefinitionDetail` cases.
+- 40 new tests: list renderer (11), detail renderer (17), `fetchPipelineDetail` HTTP (5), tree regression patch (`definitions_node_has_open_definitions_command`, guard check for defs node).
+
+- Trigger pipeline run form on the Definitions node (raw JSON args, server-side validation only). Right-click Definitions → "Aurelion: Trigger pipeline run..." opens a single-instance webview with a pipeline-name dropdown and a raw JSON args editor; on 2xx the form closes and the tree refreshes; 422 detail rendered inline.
+
+- Live schema merge from `/.well-known/pipeline-schema.json` with offline fallback; `liveSchemaFetcher`, `liveSchemaCache`, `yamlSchemaContributor` modules; `fetchPipelineSchema` in platform client; auto-refresh on activate and `apiBaseUrl` change
+
+- Bundled pipeline YAML schema for offline autocomplete and structural validation via `contributes.yamlValidation`
+- `redhat.vscode-yaml` declared as an extension dependency for zero-config YAML support
+- Drift guard test: bundled schema validated against kernel source; manifest `yamlValidation` and `extensionDependencies` assertions
+
+- Step-detail panel: read-only drill-down from run-detail Steps section. Click a step row to open (Step 25c-2b).
+- `fetchPipelineStepDetail(runId, stepName)` GET fetcher in platform client; reuses `_extractErrorDetail`.
+- `StepRunDetailFromApi` type in `api/types.ts` (extends `StepRunSummaryFromApi` with `args` and `result`).
+- `PanelContentKind` extended with `"pipelineStepDetail"`; `PanelOpenArgs` extended with `pipelineStepDetail` shape.
+- `Section.meta` optional field `{ clickable?: "1"; routingKey?: string }` for per-section click routing.
+- New pure renderer `panels/renderers/pipelineStepDetailRenderer.ts` — no vscode import; exports `pipelineStepDetailHeaderColumns`, `buildPipelineStepDetailHeaderRows` (9 fields in spec order).
+- `buildPipelineRunDetailStepsSection` now sets `id: s.step_name` (was `s.id`) and `meta: { clickable: "1", routingKey: "steps" }` on the section.
+- `DetailPanelController`: `stepClick` message arm routes to `pipelineStepDetail`; `pipelineStepDetail` arm in `_fetchAndBuild`, `_titleForArgs`, `_refreshSecsForArgs` (null — no polling).
+- Delegated click handler on `extraSectionsEl` in `panel-webview.js`; row-level `data-clickable`/`data-id`/`data-routingKey` set opt-in via `section.meta.clickable`; placeholder `"no-steps"` rows excluded.
+- CSS hover affordance extended to `.extra-section tr[data-clickable]`.
+- `isOpenDetailPanelArg` guard extended with `pipelineRunDetail` and `pipelineStepDetail` cases (and `itemDetail`).
+- 18 new tests: `pipelineStepDetailRenderer` (9 cases incl. `no_vscode_import`), `fetchPipelineStepDetail` HTTP behaviour (6 cases), `steps_section_has_clickable_meta` + updated `steps_section_one_row_per_step_in_order`, 2 guard cases.
+
+- Pipelines view: clicking a runs-list row now drills down to a read-only run-detail panel (Step 25c-2a).
+- `fetchPipelineRunDetail(runId)` GET fetcher in platform client; `_extractErrorDetail` reused.
+- `StepRunStatus` union (8 values: pending, running, awaiting_event, completed, failed, failed_timeout, aborted, cancelled) and `StepRunSummaryFromApi` + `PipelineRunDetailFromApi` types in `api/types.ts`.
+- `PanelContentKind` extended with `"pipelineRunDetail"`; `PanelOpenArgs` extended with `pipelineRunDetail` shape.
+- New pure renderer `panels/renderers/pipelineRunDetailRenderer.ts` — no vscode import, exports `pipelineRunDetailHeaderColumns`, `buildPipelineRunDetailHeaderRows`, `pipelineRunDetailStepsColumns`, `buildPipelineRunDetailStepsSection`, `TERMINAL_RUN_STATUSES`.
+- `meta: { clickable: "1" }` on every row from `buildPipelineRunsRows` — enables webview row-click routing.
+- `DetailPanelController`: `pipelineRuns` case now caches fetched runs in `_itemCache`; new `pipelineRunDetail` case in `_fetchAndBuild`; `itemClick` arm extended with `pipelineRuns` branch; `_titleForArgs` + `_refreshSecsForArgs` extended; terminal-run polling auto-cancelled via `TERMINAL_RUN_STATUSES`.
+- 17 new tests: `pipelineRunDetailRenderer` (15 cases incl. `no_vscode_import`), `fetchPipelineRunDetail` HTTP behaviour (3 cases), `every_row_has_clickable_meta` in runs-list renderer.
+
+- Pipelines view: cancel and retry pipeline runs from the runs-list panel rows.
+- `cancelPipelineRun(runId)` and `retryPipelineRun(runId)` POST fetchers in platform client; 4xx `detail` field surfaced in thrown Error.
+- `PanelRowAction` type and `actions?: PanelRowAction[]` field on `PanelRow` (backward-compatible).
+- `actionsForRunStatus(status)` pure function in `pipelineRunsListRenderer.ts` — cancel for pending/running/awaiting_event; retry for completed/failed/failed_timeout/cancelled; empty for cancelling.
+- `pipelineActionDispatch.ts` — pure injectable dispatch helper (confirm modal mandatory, no optimistic UI).
+- Confirmation modal via `vscode.window.showWarningMessage` before every cancel/retry action.
+- `pipelineAction` message arm in `DetailPanelController.onDidReceiveMessage`.
+- Action buttons in panel webview rows; buttons disabled until next `update` arrives.
+- Commands `aurelion.cancelPipelineRun` and `aurelion.retryPipelineRun` registered and hidden from command palette.
+- `CancelPipelineRunResponseFromApi` and `RetryPipelineRunResponseFromApi` API types.
+- 16 new tests: `actionsForRunStatus` (8 statuses), `dispatchPipelineAction` (4 cases), `cancelPipelineRun`/`retryPipelineRun` HTTP behaviour (4 cases).
+
+- `pipelinesView` sidebar view with 8-node status skeleton (7 statuses + Definitions); no network, no webviews.
+- New command `aurelion.refreshPipelines`.
+- New slice `integrations/pipelines/` with pure-logic `pipelineStatusDefs.ts` + `PipelinesTreeDataProvider`.
+- Pipelines view: clicking a status node now opens a live runs list with polling (`eventsRefreshSeconds`).
+- `fetchPipelineRuns({ status, limit })` platform client function (GET `/api/v0/pipeline-runs?status=`).
+- `PipelineRunStatus` and `PipelineRunSummaryFromApi` API types.
+- New renderer `panels/renderers/pipelineRunsListRenderer.ts` — pure, no vscode dep.
+- `PanelContentKind` extended with `"pipelineRuns"` variant; `PanelOpenArgs` extended with `pipelineRuns` shape.
+- `isOpenDetailPanelArg` guard extended with `pipelineRuns` case.
+- `pipelinesProvider.refresh()` added to the `apiBaseUrl` config-change branch.
+
 ### Removed
 
 - `event_type` field from `LogBufferEvent` and `PlatformLogEntry` TypeScript types — mirrors kernel wire contract removal (Phase 17 Step 4).

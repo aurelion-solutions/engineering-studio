@@ -3,6 +3,204 @@
 (function () {
   const vscode = acquireVsCodeApi();
   const statusEl = document.getElementById('status');
+
+  // ── DAG state ────────────────────────────────────────────────────────────────
+  let cy = null;
+  const dagContainerEl = document.getElementById('dag-container');
+  const dagGraphEl = document.getElementById('dag-graph');
+  const dagArgsTitleEl = document.getElementById('dag-args-title');
+  const dagArgsEl = document.getElementById('dag-args');
+  const dagEmptyEl = document.getElementById('dag-empty');
+
+  // First-render animation flag — per panel (each webview IIFE is a separate instance)
+  var hasRenderedOnce = false;
+
+  function renderDag(dag) {
+    // Destroy previous instance
+    if (cy) { cy.stop(); cy.destroy(); cy = null; }
+
+    dagContainerEl.style.display = 'flex';
+
+    if (!dag || !dag.elements || dag.elements.length === 0) {
+      dagGraphEl.style.display = 'none';
+      if (dagArgsTitleEl) { dagArgsTitleEl.style.display = 'none'; }
+      dagArgsEl.style.display = 'none';
+      dagEmptyEl.style.display = 'block';
+      return;
+    }
+
+    dagGraphEl.style.display = '';
+    if (dagArgsTitleEl) { dagArgsTitleEl.style.display = 'none'; }
+    dagArgsEl.style.display = 'none';
+    dagEmptyEl.style.display = 'none';
+
+    // Warn on dangling requires (also forwarded to OutputChannel via postMessage)
+    (dag.warnings || []).forEach(function (w) {
+      console.warn('[aurelion-dag]', w);
+      vscode.postMessage({ type: 'dagWarning', message: w });
+    });
+
+
+    // Cytoscape canvas style strings do NOT resolve CSS var() — resolve all values
+    // once from the body's computed style, with safe fallbacks for missing themes.
+    var bodyStyle = getComputedStyle(document.body);
+    function cssVar(name, fallback) {
+      var v = bodyStyle.getPropertyValue(name).trim();
+      return v || fallback;
+    }
+    var fontFamily = cssVar('--vscode-font-family', 'sans-serif');
+    var nodeBg = cssVar('--vscode-editor-inactiveSelectionBackground', '#3a3d41');
+    var nodeBorder = cssVar('--vscode-focusBorder', '#007fd4');
+    var nodeText = cssVar('--vscode-foreground', '#cccccc');
+    var warnBorder = cssVar('--vscode-editorWarning-foreground', '#cca700');
+    var errorBorder = cssVar('--vscode-errorForeground', '#f48771');
+    var edgeColor = cssVar('--vscode-descriptionForeground', '#9d9d9d');
+    var focusBorder = cssVar('--vscode-focusBorder', '#007fd4');
+    // Status-specific colors
+    var disabledFg = cssVar('--vscode-disabledForeground', '#888');
+    var ansiBlue = cssVar('--vscode-terminal-ansiBlue', '#3794ff');
+    var ansiGreen = cssVar('--vscode-terminal-ansiGreen', '#3fb950');
+    var descFg = cssVar('--vscode-descriptionForeground', '#9d9d9d');
+
+    var shouldAnimate = !hasRenderedOnce;
+
+    cy = cytoscape({
+      container: dagGraphEl,
+      elements: dag.elements,
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'shape': 'roundrectangle',
+            'background-color': nodeBg,
+            'border-color': nodeBorder,
+            'border-width': 2,
+            'color': nodeText,
+            'label': 'data(label)',
+            'text-wrap': 'wrap',
+            'text-max-width': 200,
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'padding': 12,
+            'width': 'label',
+            'height': 'label',
+            'font-size': 13,
+            'font-family': fontFamily,
+          },
+        },
+        {
+          selector: 'node[kind="wait_for_event"]',
+          style: { 'border-color': warnBorder },
+        },
+        {
+          selector: 'node[kind="unknown"]',
+          style: { 'border-color': errorBorder },
+        },
+        // ── Status selectors (override kind). NOTE: no spaces around `=` —
+        // cytoscape's attribute selector parser rejects `[attr = "v"]` silently
+        // and the rule never applies. Must be `[attr="v"]`.
+        {
+          selector: 'node[status="pending"]',
+          style: { 'border-color': disabledFg, 'opacity': 0.65 },
+        },
+        {
+          selector: 'node[status="running"]',
+          style: { 'border-color': ansiBlue, 'border-width': 3 },
+        },
+        {
+          selector: 'node[status="awaiting_event"]',
+          style: { 'border-color': warnBorder, 'border-width': 2, 'border-style': 'dashed' },
+        },
+        {
+          selector: 'node[status="completed"]',
+          style: { 'border-color': ansiGreen, 'border-width': 2 },
+        },
+        {
+          selector: 'node[status="failed"], node[status="failed_timeout"]',
+          style: { 'border-color': errorBorder, 'border-width': 3 },
+        },
+        {
+          selector: 'node[status="aborted"], node[status="cancelled"]',
+          style: { 'border-color': descFg, 'border-style': 'dotted', 'border-width': 3, 'opacity': 0.7 },
+        },
+        // ── Hover class ───────────────────────────────────────────────────────
+        {
+          selector: 'node.hover',
+          style: { 'border-width': 3, 'border-color': focusBorder },
+        },
+        {
+          selector: 'edge',
+          style: {
+            'curve-style': 'bezier',
+            'target-arrow-shape': 'triangle-backcurve',
+            'arrow-scale': 1.2,
+            'width': 2,
+            'line-color': edgeColor,
+            'target-arrow-color': edgeColor,
+          },
+        },
+      ],
+      layout: {
+        name: 'dagre',
+        rankDir: 'TB',
+        ranker: 'tight-tree',
+        nodeSep: 40,
+        rankSep: 80,
+        fit: true,
+        padding: 20,
+        animate: shouldAnimate,
+        animationDuration: shouldAnimate ? 200 : 0,
+      },
+    });
+
+    // Flip first-render flag after layout starts
+    hasRenderedOnce = true;
+
+    // Force a fit pass after the first layout settles.
+    cy.one('layoutstop', function () { cy.fit(undefined, 20); });
+
+    // ── Hover cursor ──────────────────────────────────────────────────────────
+    cy.on('mouseover', 'node', function () {
+      dagGraphEl.style.cursor = 'pointer';
+      cy.$(':selected').removeClass('hover');
+    });
+    cy.on('mouseover', 'node', function (evt) {
+      evt.target.addClass('hover');
+    });
+    cy.on('mouseout', 'node', function (evt) {
+      evt.target.removeClass('hover');
+      dagGraphEl.style.cursor = '';
+    });
+
+    var argsByStep = dag.argsByStep || {};
+    var isRunDag = dag.isRunDag || false;
+
+    cy.on('tap', 'node', function (evt) {
+      var stepName = evt.target.data('name');
+      var stepId = (argsByStep[stepName] && argsByStep[stepName].step_id) || null;
+
+      // Set title immediately
+      if (dagArgsTitleEl) {
+        dagArgsTitleEl.textContent = 'Args for: ' + stepName;
+        dagArgsTitleEl.style.display = '';
+      }
+
+      if (isRunDag && stepId !== null) {
+        // Run DAG with a real step_run record — lazy fetch full detail via host
+        dagArgsEl.classList.remove('json-block');
+        dagArgsEl.textContent = 'Loading...';
+        dagArgsEl.style.display = '';
+        vscode.postMessage({ type: 'dagNodeClick', stepName: stepName, stepId: stepId });
+      } else {
+        // Either a definition DAG (static args) or a run DAG orphan node
+        // (step never executed — show the sentinel which includes planned
+        // `definition_args` so the user sees what was scheduled).
+        renderDagArgsValue(argsByStep[stepName]);
+        dagArgsEl.style.display = '';
+        vscode.postMessage({ type: 'dagNodeClick', stepName: stepName, stepId: stepId });
+      }
+    });
+  }
   const tableEl = document.getElementById('rows-table');
   const theadRow = document.querySelector('#thead tr');
   const tbodyEl = document.getElementById('rows');
@@ -157,6 +355,61 @@
       .replace(/"/g, '&quot;');
   }
 
+  // Syntax-highlight a pre-stringified JSON value. Input is a plain string;
+  // output is HTML-safe (all literals are HTML-escaped before wrapping in spans).
+  function formatJsonColored(jsonStr) {
+    if (jsonStr === null || jsonStr === undefined) { return ''; }
+    var s = String(jsonStr)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Match: strings (incl. escapes), numbers, booleans, null, and brackets/colons.
+    var re = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false)\b|\bnull\b|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([{}\[\],])/g;
+    return s.replace(re, function (match, str, colon, bool, num, punct) {
+      if (str) {
+        var cls = colon ? 'json-key' : 'json-string';
+        return '<span class="' + cls + '">' + str + '</span>' + (colon || '');
+      }
+      if (bool) { return '<span class="json-bool">' + bool + '</span>'; }
+      if (num) { return '<span class="json-number">' + num + '</span>'; }
+      if (punct) { return '<span class="json-punctuation">' + punct + '</span>'; }
+      if (match === 'null') { return '<span class="json-null">null</span>'; }
+      return match;
+    });
+  }
+
+  // Render a value (any JSON-serializable) into the dag args panel with coloring.
+  // Unwrapping rules — surface only the step's args, not the surrounding
+  // metadata (status, attempt, started_at, ...):
+  //   - sentinel from run-DAG orphan: { definition_args, status, ... }  → take definition_args
+  //   - lazy-fetched step detail: { args, result, error, ... }          → take args
+  //   - definition-DAG static args: a plain object/scalar               → show as-is
+  function renderDagArgsValue(value) {
+    var unwrapped = value;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if ('definition_args' in value) {
+        unwrapped = value.definition_args;
+      } else if ('args' in value && 'status' in value) {
+        unwrapped = value.args;
+      }
+    }
+    var raw;
+    try {
+      raw = JSON.stringify(unwrapped, null, 2);
+    } catch (_e) {
+      dagArgsEl.textContent = '<unserializable>';
+      dagArgsEl.classList.remove('json-block');
+      return;
+    }
+    if (raw === undefined || raw === 'null') {
+      dagArgsEl.classList.remove('json-block');
+      dagArgsEl.textContent = '(no args)';
+      return;
+    }
+    dagArgsEl.classList.add('json-block');
+    dagArgsEl.innerHTML = formatJsonColored(raw);
+  }
+
   function encodeCell(cell) {
     switch (cell.kind) {
       case 'badge':
@@ -174,6 +427,10 @@
         const positiveStatuses = ['online', 'active', 'connected', 'ok', 'success'];
         const cls = positiveStatuses.includes(cell.value.toLowerCase()) ? 'status-online' : 'status-offline';
         return '<span class="status-badge ' + cls + '">' + escapeHtml(cell.value) + '</span>';
+      }
+      case 'json': {
+        if (!cell.value) { return ''; }
+        return '<pre class="json-block">' + formatJsonColored(cell.value) + '</pre>';
       }
       default:
         return escapeHtml(cell.value);
@@ -231,6 +488,13 @@
     vscode.postMessage({ type: 'itemClick', id: tr.dataset.id });
   });
 
+  // section.meta.routingKey is the routing key — title is display-only
+  extraSectionsEl.addEventListener('click', function (e) {
+    const tr = e.target.closest('tr');
+    if (!tr || !tr.dataset.clickable || !tr.dataset.id || !tr.dataset.routingKey) { return; }
+    vscode.postMessage({ type: 'stepClick', section: tr.dataset.routingKey, id: tr.dataset.id });
+  });
+
   // ── Message handler ──────────────────────────────────────────────────────────
 
   window.addEventListener('message', function (event) {
@@ -245,6 +509,22 @@
     if (msg.type === 'error') {
       statusEl.textContent = 'Error: ' + msg.message;
       tableEl.style.display = 'none';
+      return;
+    }
+
+    // ── Lazy DAG node detail (run-DAG click response) ──────────────────────────
+    if (msg.type === 'dagNodeDetail') {
+      if (dagArgsTitleEl) {
+        dagArgsTitleEl.textContent = 'Args for: ' + (msg.stepName || '');
+        dagArgsTitleEl.style.display = '';
+      }
+      if (msg.error) {
+        dagArgsEl.classList.remove('json-block');
+        dagArgsEl.textContent = 'Error: ' + msg.error;
+      } else {
+        renderDagArgsValue(msg.detail);
+      }
+      dagArgsEl.style.display = '';
       return;
     }
 
@@ -295,6 +575,30 @@
           td.innerHTML = encodeCell(cell);
           tr.appendChild(td);
         });
+        // Synthetic trailing <td> for action buttons — only appended when actions exist
+        // so tbody rows always have exactly cells.length <td>, matching thead/colgroup (Section 11.1)
+        if (row.actions && row.actions.length > 0) {
+          const actionTd = document.createElement('td');
+          actionTd.style.cssText = 'white-space:nowrap; padding:2px 4px;';
+          const actionWrap = document.createElement('span');
+          actionWrap.style.cssText = 'display:inline-flex; gap:4px;';
+          row.actions.forEach(function (action) {
+            const btn = document.createElement('button');
+            btn.textContent = action.label;
+            btn.dataset.verb = action.verb;
+            btn.dataset.runId = row.id;
+            btn.setAttribute('aria-label', action.label + ' run ' + row.id);
+            btn.style.cssText = 'padding:2px 8px; font-size:0.8em; cursor:pointer; border-radius:3px; border:1px solid var(--vscode-input-border,#555); background:var(--vscode-input-background); color:var(--vscode-foreground); font-family:inherit;';
+            btn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              btn.disabled = true;
+              vscode.postMessage({ type: 'pipelineAction', verb: action.verb, runId: row.id });
+            });
+            actionWrap.appendChild(btn);
+          });
+          actionTd.appendChild(actionWrap);
+          tr.appendChild(actionTd);
+        }
         tbodyEl.appendChild(tr);
       });
 
@@ -332,6 +636,17 @@
         saveBtn.disabled = true;
       }
 
+      // ── DAG ──
+      if (msg.dag) {
+        // Tag the descriptor to tell the tap handler which mode to use
+        var dagWithFlag = Object.assign({}, msg.dag, { isRunDag: !!msg.dagIsRunDag });
+        renderDag(dagWithFlag);
+      } else if (dagContainerEl) {
+        // No DAG for this panel kind — hide container
+        if (cy) { cy.stop(); cy.destroy(); cy = null; }
+        dagContainerEl.style.display = 'none';
+      }
+
       // ── Extra sections ──
       extraSectionsEl.innerHTML = '';
       (msg.extraSections || []).forEach(function (section) {
@@ -352,8 +667,15 @@
         thead.appendChild(theadTr);
         table.appendChild(thead);
         const tbody = document.createElement('tbody');
+        const sectionClickable = section.meta && section.meta.clickable === '1';
+        const sectionRoutingKey = (section.meta && section.meta.routingKey) || '';
         (section.rows || []).forEach(function (row) {
           const tr = document.createElement('tr');
+          if (sectionClickable && row.id && row.id !== 'no-steps') {
+            tr.dataset.id = row.id;
+            tr.dataset.clickable = '1';
+            tr.dataset.routingKey = sectionRoutingKey;
+          }
           (row.cells || []).forEach(function (cell) {
             const td = document.createElement('td');
             td.innerHTML = encodeCell(cell);

@@ -790,3 +790,133 @@ export type AccessFactFromApi = {
   valid_until: string | null;
   created_at: string;
 };
+
+// ─── Orchestrator: PipelineRun ────────────────────────────────────────────────
+
+/**
+ * Step-run status values mirroring StepRunStatus (orchestrator/models.py:44–60).
+ * `aborted` is the forensic marker set on abandoned previous-attempt rows
+ * by the reclaim transaction — present in detail.steps for retried runs.
+ */
+export type StepRunStatus =
+  | "pending"
+  | "running"
+  | "awaiting_event"
+  | "completed"
+  | "failed"
+  | "failed_timeout"
+  | "aborted"
+  | "cancelled";
+
+/**
+ * Run status values mirroring PipelineRunStatus (orchestrator/models.py:26–41).
+ * `cancelling` is included defensively — it is a transient state not present
+ * as a TreeView node but possible in a server response filtered by `running`.
+ */
+export type PipelineRunStatus =
+  | "pending"
+  | "running"
+  | "awaiting_event"
+  | "cancelling"
+  | "completed"
+  | "failed"
+  | "failed_timeout"
+  | "cancelled";
+
+/** Mirror of PipelineRunSummary (orchestrator/schemas.py:78-93) */
+export type PipelineRunSummaryFromApi = {
+  id: string;
+  pipeline_name: string;
+  pipeline_version: number;
+  content_hash: string;
+  status: PipelineRunStatus;
+  trigger_source: string;
+  current_step: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Mirror of StepRunSummary (orchestrator/schemas.py) */
+export type StepRunSummaryFromApi = {
+  id: string;
+  step_name: string;
+  attempt: number;
+  status: StepRunStatus;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+};
+
+/** Mirror of PipelineRunDetail (orchestrator/schemas.py) */
+export type PipelineRunDetailFromApi = PipelineRunSummaryFromApi & {
+  args: Record<string, unknown>;
+  steps: StepRunSummaryFromApi[];
+};
+
+/** Mirror of StepRunDetail (orchestrator/schemas.py) */
+export type StepRunDetailFromApi = StepRunSummaryFromApi & {
+  args: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+};
+
+/** POST /api/v0/pipeline-runs/{run_id}/cancel — 200 response */
+export type CancelPipelineRunResponseFromApi = {
+  run_id: string;
+  status: "cancelled" | "cancelling";
+};
+
+/** POST /api/v0/pipeline-runs/{run_id}/retry — 201 response */
+export type RetryPipelineRunResponseFromApi = {
+  run_id: string;
+  retry_of_run_id: string;
+  status: PipelineRunStatus;
+  pipeline_name: string;
+  pipeline_version: number;
+};
+
+// ─── Orchestrator: Pipeline definitions (trigger form) ────────────────────────
+
+/** Mirror of PipelineTriggerSpec (orchestrator/schemas.py:21-29). */
+export type PipelineTriggerSpecFromApi = {
+  type: string;
+  routing_key?: string | null;
+  cron?: string | null;
+  every?: string | null;
+  match?: Record<string, unknown> | null;
+  args?: Record<string, unknown> | null;
+};
+
+/** Mirror of PipelineSummary (orchestrator/schemas.py:32-40) — GET /api/v0/pipelines item. */
+export type PipelineSummaryFromApi = {
+  name: string;
+  version: number;
+  schema_version: number;
+  description: string | null;
+  step_count: number;
+  triggers: PipelineTriggerSpecFromApi[];
+};
+
+/** Mirror of PipelineDetail (orchestrator/schemas.py:43-48) — GET /api/v0/pipelines/{name}. */
+export type PipelineDetailFromApi = PipelineSummaryFromApi & {
+  args_schema: Record<string, unknown>;
+  steps: Record<string, unknown>[];
+  content_hash: string;
+  source_path: string;
+};
+
+/** POST /api/v0/pipeline-runs — request body. */
+export type CreatePipelineRunRequest = {
+  pipeline_name: string;
+  args?: Record<string, unknown>;
+};
+
+/** POST /api/v0/pipeline-runs — 200 or 201 response. */
+export type CreatePipelineRunResponseFromApi = {
+  pipeline_run_id: string;
+  status: PipelineRunStatus;
+  pipeline_version: number;
+  created: boolean;
+};

@@ -2,7 +2,7 @@
   "name": "aurelion-engineering-studio",
   "displayName": "Aurelion Engineering Studio",
   "description": "Aurelion tools and integrations for VS Code.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "aurelion",
   "license": "Apache-2.0",
   "icon": "media/logo.svg",
@@ -22,6 +22,9 @@
     "integrations"
   ],
   "main": "./out/extension.js",
+  "extensionDependencies": [
+    "redhat.vscode-yaml"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -75,6 +78,12 @@
           "name": "Lake",
           "icon": "$(database)",
           "contextualTitle": "Aurelion"
+        },
+        {
+          "id": "aurelion.engineeringStudio.pipelinesView",
+          "name": "Pipelines",
+          "icon": "$(rocket)",
+          "contextualTitle": "Aurelion"
         }
       ]
     },
@@ -106,6 +115,10 @@
       {
         "view": "aurelion.engineeringStudio.lakeView",
         "contents": "No lake data yet.\n[Refresh Lake](command:aurelion.refreshLake)\n\nIf the kernel is unreachable, check `aurelion.engineeringStudio.apiBaseUrl` in Settings."
+      },
+      {
+        "view": "aurelion.engineeringStudio.pipelinesView",
+        "contents": "Pipelines surface initialising. List view lands in step 25b."
       }
     ],
     "commands": [
@@ -196,6 +209,27 @@
         "title": "Aurelion: Refresh Lake",
         "icon": "$(refresh)",
         "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.refreshPipelines",
+        "title": "Aurelion: Refresh Pipelines",
+        "icon": "$(refresh)",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.cancelPipelineRun",
+        "title": "Aurelion: Cancel pipeline run",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.retryPipelineRun",
+        "title": "Aurelion: Retry pipeline run",
+        "category": "Aurelion"
+      },
+      {
+        "command": "aurelion.triggerPipelineRun",
+        "title": "Aurelion: Trigger pipeline run...",
+        "category": "Aurelion"
       }
     ],
     "menus": {
@@ -229,6 +263,11 @@
           "command": "aurelion.refreshLake",
           "when": "view == aurelion.engineeringStudio.lakeView",
           "group": "navigation"
+        },
+        {
+          "command": "aurelion.refreshPipelines",
+          "when": "view == aurelion.engineeringStudio.pipelinesView",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -251,6 +290,11 @@
           "command": "aurelion.refreshApplication",
           "when": "view == aurelion.engineeringStudio.applicationsView && viewItem == aurelion.application",
           "group": "9_refresh@1"
+        },
+        {
+          "command": "aurelion.triggerPipelineRun",
+          "when": "view == aurelion.engineeringStudio.pipelinesView && viewItem == aurelion.pipelineDefinitions",
+          "group": "2_open@1"
         }
       ],
       "commandPalette": [
@@ -261,9 +305,30 @@
         {
           "command": "aurelion.refreshApplication",
           "when": "false"
+        },
+        {
+          "command": "aurelion.cancelPipelineRun",
+          "when": "false"
+        },
+        {
+          "command": "aurelion.retryPipelineRun",
+          "when": "false"
+        },
+        {
+          "command": "aurelion.triggerPipelineRun",
+          "when": "false"
         }
       ]
     },
+    "yamlValidation": [
+      {
+        "fileMatch": [
+          "**/pipelines/*.yaml",
+          "**/pipelines/*.yml"
+        ],
+        "url": "./schemas/aurelion-pipeline.schema.json"
+      }
+    ],
     "configuration": {
       "title": "Aurelion Engineering Studio",
       "properties": {
@@ -300,14 +365,14 @@
     "lint": "node --disable-warning=DEP0040 ./node_modules/eslint/bin/eslint.js src",
     "package": "node --disable-warning=DEP0040 ./node_modules/@vscode/vsce/vsce package",
     "pretest": "pnpm run compile",
-    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\" \"out/integrations/accessAnalysis/__tests__/*.test.js\" \"out/integrations/llm/__tests__/*.test.js\" \"out/api/__tests__/*.test.js\" \"out/integrations/lake/__tests__/*.test.js\""
+    "test": "node --test \"out/__tests__/*.test.js\" \"out/integrations/__tests__/*.test.js\" \"out/integrations/logs/__tests__/*.test.js\" \"out/integrations/statusBar/__tests__/*.test.js\" \"out/integrations/commands/__tests__/*.test.js\" \"out/panels/__tests__/*.test.js\" \"out/panels/renderers/__tests__/*.test.js\" \"out/integrations/events/__tests__/*.test.js\" \"out/integrations/logsLevels/__tests__/*.test.js\" \"out/integrations/inventory/__tests__/*.test.js\" \"out/integrations/accessAnalysis/__tests__/*.test.js\" \"out/integrations/llm/__tests__/*.test.js\" \"out/api/__tests__/*.test.js\" \"out/integrations/lake/__tests__/*.test.js\" \"out/integrations/pipelines/__tests__/*.test.js\" \"out/integrations/pipelines/triggerForm/__tests__/*.test.js\" \"out/integrations/pipelines/schema/__tests__/*.test.js\""
   },
   "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "devDependencies": {
+    "@eslint/js": "^9.39.0",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
     "@vscode/vsce": "^3.6.0",
-    "@eslint/js": "^9.39.0",
     "eslint": "^9.39.0",
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.58.0"
@@ -315,5 +380,10 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/aurelion/aurelion-engineering-studio.git"
+  },
+  "dependencies": {
+    "cytoscape": "^3.33.3",
+    "cytoscape-dagre": "^2.5.0",
+    "dagre": "^0.8.5"
   }
 }

@@ -101,6 +101,7 @@ describe("Gate (a): no webview residue", () => {
     const ALLOWED_MEDIA_FILES = [
       path.join(MEDIA, "panel-webview.js"),
       path.join(MEDIA, "inference-webview.js"),
+      path.join(MEDIA, "trigger-run-webview.js"),
     ];
 
     const mediaFiles = collectFiles(MEDIA, (f) =>

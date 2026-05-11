@@ -143,4 +143,63 @@ describe("isOpenDetailPanelArg", () => {
       false,
     );
   });
+
+  it("isOpenDetailPanelArg_accepts_valid_pipelineRuns", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({
+        kind: "pipelineRuns",
+        ctxKey: "pipeline-runs:running",
+        statusKey: "running",
+        label: "Running",
+      }),
+      true,
+    );
+  });
+
+  it("isOpenDetailPanelArg_rejects_pipelineRuns_missing_statusKey", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({
+        kind: "pipelineRuns",
+        ctxKey: "pipeline-runs:running",
+        label: "Running",
+      }),
+      false,
+    );
+  });
+
+  it("isOpenDetailPanelArg_rejects_pipelineRuns_missing_label", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({
+        kind: "pipelineRuns",
+        ctxKey: "pipeline-runs:running",
+        statusKey: "running",
+      }),
+      false,
+    );
+  });
+
+  it("isOpenDetailPanelArg_accepts_valid_pipelineStepDetail", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({
+        kind: "pipelineStepDetail",
+        ctxKey: "step:run-1:fetch-data",
+        runId: "run-1",
+        stepName: "fetch-data",
+        pipelineName: "my-pipeline",
+      }),
+      true,
+    );
+  });
+
+  it("isOpenDetailPanelArg_rejects_pipelineStepDetail_missing_stepName", () => {
+    assert.strictEqual(
+      isOpenDetailPanelArg({
+        kind: "pipelineStepDetail",
+        ctxKey: "step:run-1:fetch-data",
+        runId: "run-1",
+        pipelineName: "my-pipeline",
+      }),
+      false,
+    );
+  });
 });

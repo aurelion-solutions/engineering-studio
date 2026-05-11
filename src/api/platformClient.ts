@@ -3,6 +3,12 @@ import type {
   AccessArtifactFromApi,
   PlatformEventEntry,
   PlatformLogEntry,
+  PipelineRunStatus,
+  PipelineRunSummaryFromApi,
+  PipelineRunDetailFromApi,
+  StepRunDetailFromApi,
+  CancelPipelineRunResponseFromApi,
+  RetryPipelineRunResponseFromApi,
   AccessFactFromApi,
   AccessUsageFactCreatePayload,
   AccessUsageFactFromApi,
@@ -64,6 +70,10 @@ import type {
   LLMInferenceStreamChunk,
   LakeStatusFromApi,
   LakeBatchListResponseFromApi,
+  PipelineSummaryFromApi,
+  PipelineDetailFromApi,
+  CreatePipelineRunRequest,
+  CreatePipelineRunResponseFromApi,
 } from "./types";
 import { parseSseStream } from "./sseParser";
 import type { SseParserOptions } from "./sseParser";
@@ -1515,4 +1525,206 @@ export async function fetchPlatformLogs(params: {
     throw new Error("Platform logs response is not a JSON array");
   }
   return data as PlatformLogEntry[];
+}
+
+// ─── Orchestrator: Pipeline runs ─────────────────────────────────────────────
+
+export async function fetchPipelineRuns(params: {
+  status?: PipelineRunStatus[];
+  limit?: number;
+}): Promise<PipelineRunSummaryFromApi[]> {
+  const search = new URLSearchParams();
+  if (params.status !== undefined) {
+    for (const s of params.status) {
+      search.append("status", s);
+    }
+  }
+  search.set("limit", String(params.limit ?? 100));
+  const url = `${getApiBaseUrl()}/api/v0/pipeline-runs?${search.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Pipeline runs request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Pipeline runs response is not a JSON array");
+  }
+  return data as PipelineRunSummaryFromApi[];
+}
+
+export async function fetchPipelineRunDetail(
+  runId: string,
+): Promise<PipelineRunDetailFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/pipeline-runs/${encodeURIComponent(runId)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(
+      `Pipeline run detail request failed (${res.status}): ${await _extractErrorDetail(res)}`,
+    );
+  }
+  return res.json() as Promise<PipelineRunDetailFromApi>;
+}
+
+export async function fetchPipelineStepDetail(
+  runId: string,
+  stepName: string,
+): Promise<StepRunDetailFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/pipeline-runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepName)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(
+      `Pipeline step detail request failed (${res.status}): ${await _extractErrorDetail(res)}`,
+    );
+  }
+  return res.json() as Promise<StepRunDetailFromApi>;
+}
+
+/**
+ * Fetch step-run detail by step UUID (used for lazy DAG node click in run-detail panel).
+ * Endpoint: GET /api/v0/pipeline-runs/{run_id}/steps/{step_id}
+ */
+export async function fetchStepDetail(
+  runId: string,
+  stepId: string,
+): Promise<StepRunDetailFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/pipeline-runs/${encodeURIComponent(runId)}/steps/${encodeURIComponent(stepId)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(
+      `Step detail request failed (${res.status}): ${await _extractErrorDetail(res)}`,
+    );
+  }
+  return res.json() as Promise<StepRunDetailFromApi>;
+}
+
+async function _extractErrorDetail(response: Response): Promise<string> {
+  try {
+    const body = await response.json() as Record<string, unknown>;
+    const detail = body["detail"];
+    if (typeof detail === "string") {
+      return detail;
+    }
+    if (detail !== undefined) {
+      try {
+        return JSON.stringify(detail);
+      } catch {
+        return String(detail);
+      }
+    }
+  } catch {
+    // ignore JSON parse failure
+  }
+  return response.statusText;
+}
+
+export async function cancelPipelineRun(
+  runId: string,
+): Promise<CancelPipelineRunResponseFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/pipeline-runs/${runId}/cancel`;
+  const res = await fetch(url, { method: "POST" });
+  if (!res.ok) {
+    const detail = await _extractErrorDetail(res);
+    throw new Error(
+      `Cancel pipeline run request failed (${res.status}): ${detail}`,
+    );
+  }
+  return res.json() as Promise<CancelPipelineRunResponseFromApi>;
+}
+
+export async function retryPipelineRun(
+  runId: string,
+): Promise<RetryPipelineRunResponseFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/pipeline-runs/${runId}/retry`;
+  const res = await fetch(url, { method: "POST" });
+  if (!res.ok) {
+    const detail = await _extractErrorDetail(res);
+    throw new Error(
+      `Retry pipeline run request failed (${res.status}): ${detail}`,
+    );
+  }
+  return res.json() as Promise<RetryPipelineRunResponseFromApi>;
+}
+
+// ─── Orchestrator: Pipeline definitions + trigger ────────────────────────────
+
+/** Structured error thrown by triggerPipelineRun on non-2xx responses. */
+export class TriggerPipelineRunError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(`Trigger pipeline run failed (${status}): ${detail}`);
+    this.name = "TriggerPipelineRunError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+export async function fetchPipelines(): Promise<PipelineSummaryFromApi[]> {
+  const url = `${getApiBaseUrl()}/api/v0/pipelines`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Pipelines request failed (${res.status}): ${text || res.statusText}`,
+    );
+  }
+  const data: unknown = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Pipelines response is not a JSON array");
+  }
+  return data as PipelineSummaryFromApi[];
+}
+
+export async function fetchPipelineDetail(name: string): Promise<PipelineDetailFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/pipelines/${encodeURIComponent(name)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(
+      `Pipeline detail request failed (${res.status}): ${await _extractErrorDetail(res)}`,
+    );
+  }
+  return res.json() as Promise<PipelineDetailFromApi>;
+}
+
+// ─── Pipeline schema (.well-known) ───────────────────────────────────────────
+
+/**
+ * Fetch the merged pipeline JSON schema from the kernel.
+ * Endpoint is unversioned by design — `/.well-known/` is never under `/api/v0/`.
+ * Returns `unknown`; object-shape validation lives in liveSchemaFetcher.
+ *
+ * @param signal  Optional AbortSignal (e.g. from a 5s AbortController timeout).
+ */
+export async function fetchPipelineSchema(
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const url = `${getApiBaseUrl()}/.well-known/pipeline-schema.json`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    const detail = await _extractErrorDetail(res);
+    throw new Error(
+      `Pipeline schema request failed (${res.status}): ${detail}`,
+    );
+  }
+  return res.json();
+}
+
+export async function triggerPipelineRun(
+  req: CreatePipelineRunRequest,
+): Promise<CreatePipelineRunResponseFromApi> {
+  const url = `${getApiBaseUrl()}/api/v0/pipeline-runs`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (res.ok) {
+    return res.json() as Promise<CreatePipelineRunResponseFromApi>;
+  }
+  const detail = await _extractErrorDetail(res);
+  throw new TriggerPipelineRunError(res.status, detail);
 }
