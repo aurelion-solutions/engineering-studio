@@ -35,14 +35,14 @@ describe("buildPipelineDefinitionDag", () => {
 
   it("single_engine_call_step_no_requires_yields_one_node_zero_edges", () => {
     const detail = makeDetail([
-      { name: "fetch", engine: "reconciliation", action: "run", args: { x: 1 }, requires: [] },
+      { name: "fetch", engine: "inventory_reconcile", action: "run", args: { x: 1 }, requires: [] },
     ]);
     const result = buildPipelineDefinitionDag(detail);
     assert.equal(result.elements.length, 1);
     const node = result.elements[0] as { data: { id: string; name: string; label: string; kind: string } };
     assert.equal(node.data.id, "step_0");
     assert.equal(node.data.kind, "engine_call");
-    assert.equal(node.data.label, "fetch\nreconciliation.run");
+    assert.equal(node.data.label, "fetch\ninventory_reconcile.run");
     assert.deepEqual(result.warnings, []);
   });
 

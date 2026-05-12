@@ -279,7 +279,7 @@ describe("TriggerRunPanelController", () => {
     clearModuleCache();
   });
 
-  it("openOrReveal() creates a panel exactly once", () => {
+  it("openOrReveal() creates a panel exactly once", async () => {
     clearModuleCache();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { TriggerRunPanelController } = require(CONTROLLER_PATH) as ControllerModule;
@@ -288,11 +288,12 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 1);
     ctrl.dispose();
   });
 
-  it("openOrReveal() second call reveals instead of creating a second panel", () => {
+  it("openOrReveal() second call reveals instead of creating a second panel", async () => {
     clearModuleCache();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { TriggerRunPanelController } = require(CONTROLLER_PATH) as ControllerModule;
@@ -301,7 +302,9 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 1);
     assert.equal(revealCount, 1);
     ctrl.dispose();
@@ -316,6 +319,7 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
 
     await ctrl._handleMessage({ type: "loadPipelines" });
     await flushMicrotasks();
@@ -339,6 +343,7 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
 
     const args = { env: "prod" };
     await ctrl._handleMessage({ type: "submit", pipelineName: "pipe-a", args });
@@ -366,6 +371,7 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
 
     const sensitiveArgs = { secret_token: "SUPER_SECRET_VALUE_XYZ" };
     await ctrl._handleMessage({ type: "submit", pipelineName: "pipe-a", args: sensitiveArgs });
@@ -396,6 +402,7 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     const initialDisposeCount = disposeCount;
 
     await ctrl._handleMessage({ type: "submit", pipelineName: "pipe-a", args: {} });
@@ -430,6 +437,7 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
 
     await ctrl._handleMessage({ type: "submit", pipelineName: "pipe-a", args: {} });
     await flushMicrotasks();
@@ -459,6 +467,7 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
 
     // Simulate tampered postMessage: args is an array, not an object
     await ctrl._handleMessage({ type: "submit", pipelineName: "pipe-a", args: [1, 2, 3] as unknown as Record<string, unknown> });
@@ -485,6 +494,7 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     postedMessages = [];
 
     ctrl.notifyApiBaseChanged();
@@ -497,7 +507,7 @@ describe("TriggerRunPanelController", () => {
     ctrl.dispose();
   });
 
-  it("dispose() clears panel so subsequent openOrReveal() creates a new one", () => {
+  it("dispose() clears panel so subsequent openOrReveal() creates a new one", async () => {
     clearModuleCache();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { TriggerRunPanelController } = require(CONTROLLER_PATH) as ControllerModule;
@@ -506,9 +516,11 @@ describe("TriggerRunPanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 1);
     ctrl.dispose();
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 2);
     ctrl.dispose();
   });

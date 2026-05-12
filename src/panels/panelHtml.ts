@@ -66,10 +66,27 @@ export function renderPanelHtml(args: RenderPanelHtmlArgs): string {
     .json-null { color: var(--vscode-debugTokenExpression-value, var(--vscode-disabledForeground, #888)); font-style: italic; }
     .json-punctuation { color: var(--vscode-foreground); opacity: 0.65; }
     #dag-args.json-block { padding: 10px 12px; }
+    .tab { padding: 6px 14px 6px; background: transparent; color: var(--vscode-foreground); border: none; border-bottom: 2px solid transparent; cursor: pointer; opacity: 0.7; font-size: inherit; font-family: inherit; }
+    .tab.active { opacity: 1; border-bottom: 2px solid var(--vscode-focusBorder, #007fd4); padding-bottom: 4px; }
+    .tab:hover:not(.active) { opacity: 1; background: var(--vscode-list-hoverBackground); }
+    .tab-count { font-size: 0.85em; opacity: 0.6; margin-left: 3px; }
+    .op-create { color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950); }
+    .op-revoke { color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); }
+    .op-update { color: var(--vscode-gitDecoration-modifiedResourceForeground, #d29922); }
+    .op-reactivate { color: var(--vscode-terminal-ansiBrightBlue, #58a6ff); }
+    .op-noop { color: var(--vscode-foreground); opacity: 0.5; }
+    .exec-proposed { opacity: 0.7; }
+    .exec-executing { color: var(--vscode-terminal-ansiBrightBlue, #58a6ff); }
+    .exec-done { color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950); }
+    .exec-failed { color: var(--vscode-errorForeground, #f85149); }
+    .badge-effect-allow { background: rgba(63,185,80,0.2); padding: 1px 6px; border-radius: 3px; font-size: 0.85em; }
+    .badge-effect-deny { background: rgba(248,81,73,0.2); padding: 1px 6px; border-radius: 3px; font-size: 0.85em; }
+    .uuid-short { font-family: var(--vscode-editor-font-family, monospace); font-size: 0.9em; opacity: 0.7; }
   </style>
 </head>
 <body>
   <div id="status">Loading…</div>
+  <div id="tab-bar" style="display:none; padding:0 0 12px; gap:0; border-bottom:1px solid var(--vscode-panel-border,#444); flex-wrap:wrap;"></div>
   <div id="filter-bar" style="display:none; padding: 0 0 10px;">
     <div id="filter-inputs" style="display:flex; gap:16px; flex-wrap:wrap;"></div>
     <div id="ts-filter" style="display:none;">

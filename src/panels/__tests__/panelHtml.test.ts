@@ -61,4 +61,17 @@ describe("renderPanelHtml", () => {
     assert.ok(html.includes('id="dag-args"'), "dag-args must be present");
     assert.ok(html.includes('id="dag-empty"'), "dag-empty must be present");
   });
+
+  it("tab-bar skeleton is present and initially hidden", () => {
+    const html = renderPanelHtml(makeArgs());
+    assert.ok(html.includes('id="tab-bar"'), "tab-bar element must be present");
+    assert.ok(html.includes('display:none'), "tab-bar must start hidden");
+  });
+
+  it("tab-bar CSS classes are present in style block", () => {
+    const html = renderPanelHtml(makeArgs());
+    assert.ok(html.includes('.tab {') || html.includes('.tab{'), ".tab style must be present");
+    assert.ok(html.includes('.tab.active'), ".tab.active style must be present");
+    assert.ok(html.includes('.tab-count'), ".tab-count style must be present");
+  });
 });

@@ -175,6 +175,10 @@ const platformClientStub = {
   fetchFeedbacks: async () => [],
   fetchLlmModels: async () => [],
   fetchLlmExecutionProfiles: async () => [],
+  fetchAccessFactsForState: async () => [],
+  fetchIncomingDeltaItems: async () => ({ items: [], total: 0 }),
+  fetchOutgoingPlanItems: async () => ({ items: [], total: 0 }),
+  fetchAccessStateDiffCount: async () => ({ incoming: 3, outgoing: 7, total: 10 }),
 };
 
 const panelHtmlStub = {
@@ -768,6 +772,126 @@ describe("DetailPanelController — pipelineRunDetail with DAG", () => {
 
     assert.ok(warnCallCount > beforeWarnCount, "extensionChannel.warn must be called on dagWarning");
     assert.ok(lastWarnMsg.includes("Z"), `warn message must contain 'Z', got: ${lastWarnMsg}`);
+
+    ctrl.dispose();
+  });
+});
+
+// ─── accessState tab-bar tests ─────────────────────────────────────────────────
+
+describe("DetailPanelController — accessState tab-bar", () => {
+  beforeEach(() => {
+    postedMessages = [];
+    messageCallback = undefined;
+    disposeCallback = undefined;
+    fetchPipelinesCallCount = 0;
+    fetchPipelineDetailCallCount = 0;
+    fetchStepDetailCallCount = 0;
+    installMocks();
+  });
+
+  afterEach(() => {
+    uninstallMocks();
+    clearModuleCache();
+  });
+
+  it("opening accessState panel posts set-tabs with 3 tabs before update", async () => {
+    clearModuleCache();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DetailPanelController } = require(CONTROLLER_PATH) as ControllerModule;
+    const ctrl = new DetailPanelController({
+      extensionChannel: makeChannel(),
+      refreshSecondsProvider: () => 30,
+      extensionUri: makeExtensionUri(),
+    });
+
+    ctrl.openOrReveal({ kind: "accessState", ctxKey: "access-state", activeTab: "list" });
+    await flushMicrotasks();
+
+    const setTabsMsg = postedMessages.find(
+      (m) => (m as Record<string, unknown>)["type"] === "set-tabs",
+    ) as Record<string, unknown> | undefined;
+
+    assert.ok(setTabsMsg !== undefined, "set-tabs message must be posted");
+    const tabs = setTabsMsg["tabs"] as Array<Record<string, unknown>>;
+    assert.ok(Array.isArray(tabs), "tabs must be an array");
+    assert.equal(tabs.length, 3, "must have exactly 3 tabs");
+    assert.equal(setTabsMsg["activeTab"], "list", "activeTab must be 'list'");
+
+    const counts = setTabsMsg["counts"] as Record<string, number>;
+    assert.ok(typeof counts === "object" && counts !== null, "counts must be present");
+    assert.equal(counts["incoming"], 3, "incoming count from stub must be 3");
+    assert.equal(counts["outgoing"], 7, "outgoing count from stub must be 7");
+
+    // set-tabs must arrive before update
+    const setTabsIdx = postedMessages.indexOf(setTabsMsg);
+    const updateIdx = postedMessages.findIndex(
+      (m) => (m as Record<string, unknown>)["type"] === "update",
+    );
+    assert.ok(setTabsIdx < updateIdx, "set-tabs must be posted before update");
+
+    ctrl.dispose();
+  });
+
+  it("switch-tab message updates activeTab and re-posts set-tabs and update", async () => {
+    clearModuleCache();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DetailPanelController } = require(CONTROLLER_PATH) as ControllerModule;
+    const ctrl = new DetailPanelController({
+      extensionChannel: makeChannel(),
+      refreshSecondsProvider: () => 30,
+      extensionUri: makeExtensionUri(),
+    });
+
+    ctrl.openOrReveal({ kind: "accessState", ctxKey: "access-state", activeTab: "list" });
+    await flushMicrotasks();
+
+    // Reset captured messages after initial open
+    postedMessages = [];
+
+    // Simulate webview tab switch
+    assert.ok(messageCallback !== undefined, "messageCallback must be registered");
+    messageCallback({ type: "switch-tab", tab: "incoming" });
+    await flushMicrotasks();
+
+    const setTabsMsg = postedMessages.find(
+      (m) => (m as Record<string, unknown>)["type"] === "set-tabs",
+    ) as Record<string, unknown> | undefined;
+    assert.ok(setTabsMsg !== undefined, "set-tabs must be re-posted on switch-tab");
+    assert.equal(setTabsMsg["activeTab"], "incoming", "activeTab must be updated to 'incoming'");
+
+    const updateMsg = postedMessages.find(
+      (m) => (m as Record<string, unknown>)["type"] === "update",
+    );
+    assert.ok(updateMsg !== undefined, "update message must be posted after switch-tab");
+
+    ctrl.dispose();
+  });
+
+  it("switch-tab with invalid tab key is ignored", async () => {
+    clearModuleCache();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { DetailPanelController } = require(CONTROLLER_PATH) as ControllerModule;
+    const ctrl = new DetailPanelController({
+      extensionChannel: makeChannel(),
+      refreshSecondsProvider: () => 30,
+      extensionUri: makeExtensionUri(),
+    });
+
+    ctrl.openOrReveal({ kind: "accessState", ctxKey: "access-state", activeTab: "list" });
+    await flushMicrotasks();
+
+    postedMessages = [];
+
+    // Send invalid tab
+    assert.ok(messageCallback !== undefined);
+    messageCallback({ type: "switch-tab", tab: "bogus" });
+    await flushMicrotasks();
+
+    const updateAfter = postedMessages.find(
+      (m) => (m as Record<string, unknown>)["type"] === "update",
+    );
+    assert.ok(updateAfter === undefined, "no update must be posted for invalid tab key");
 
     ctrl.dispose();
   });

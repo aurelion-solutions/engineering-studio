@@ -7,12 +7,16 @@ describe("classifyEvent", () => {
     assert.equal(classifyEvent("inventory.customer.created"), "inventory");
   });
 
-  it("classifies reconciliation.* as capabilities", () => {
-    assert.equal(classifyEvent("reconciliation.run.completed"), "capabilities");
+  it("classifies inventory_reconcile.* as capabilities", () => {
+    assert.equal(classifyEvent("inventory_reconcile.run.completed"), "capabilities");
   });
 
-  it("classifies provisioning.* as capabilities", () => {
-    assert.equal(classifyEvent("provisioning.task.started"), "capabilities");
+  it("classifies inventory_sync.* as capabilities", () => {
+    assert.equal(classifyEvent("inventory_sync.apply.completed"), "capabilities");
+  });
+
+  it("classifies access_apply.* as capabilities", () => {
+    assert.equal(classifyEvent("access_apply.task.started"), "capabilities");
   });
 
   it("classifies audit.* as platform (fallback)", () => {

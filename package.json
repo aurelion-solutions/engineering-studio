@@ -2,7 +2,7 @@
   "name": "aurelion-engineering-studio",
   "displayName": "Aurelion Engineering Studio",
   "description": "Aurelion tools and integrations for VS Code.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "aurelion",
   "license": "Apache-2.0",
   "icon": "media/logo.svg",

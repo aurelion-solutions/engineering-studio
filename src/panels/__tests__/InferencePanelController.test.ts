@@ -164,6 +164,10 @@ function makeExtensionUri(): unknown {
   return { toString: () => "vscode-resource://ext" };
 }
 
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("InferencePanelController", () => {
@@ -177,7 +181,7 @@ describe("InferencePanelController", () => {
     clearModuleCache();
   });
 
-  it("openOrReveal() creates a panel exactly once", () => {
+  it("openOrReveal() creates a panel exactly once", async () => {
     clearModuleCache();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { InferencePanelController } = require(CONTROLLER_PATH) as ControllerModule;
@@ -186,11 +190,12 @@ describe("InferencePanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 1);
     ctrl.dispose();
   });
 
-  it("openOrReveal() second call reveals instead of creating a second panel", () => {
+  it("openOrReveal() second call reveals instead of creating a second panel", async () => {
     clearModuleCache();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { InferencePanelController } = require(CONTROLLER_PATH) as ControllerModule;
@@ -199,7 +204,9 @@ describe("InferencePanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 1);
     assert.equal(revealCount, 1);
     ctrl.dispose();
@@ -214,12 +221,13 @@ describe("InferencePanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     await ctrl._handleMessage({ type: "abort" });
     // No throw — test passes
     ctrl.dispose();
   });
 
-  it("dispose() clears panel so subsequent openOrReveal() creates a new one", () => {
+  it("dispose() clears panel so subsequent openOrReveal() creates a new one", async () => {
     clearModuleCache();
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { InferencePanelController } = require(CONTROLLER_PATH) as ControllerModule;
@@ -228,9 +236,11 @@ describe("InferencePanelController", () => {
       extensionUri: makeExtensionUri(),
     });
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 1);
     ctrl.dispose();
     ctrl.openOrReveal();
+    await flushMicrotasks();
     assert.equal(createPanelCount, 2);
     ctrl.dispose();
   });

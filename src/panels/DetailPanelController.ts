@@ -19,8 +19,9 @@ import {
   fetchSubjects,
   fetchAccounts,
   fetchResources,
-  fetchAccessArtifacts,
-  fetchAccessFacts,
+  fetchAccessFactsForState,
+  fetchIncomingDeltaItems,
+  fetchOutgoingPlanItems,
   fetchArtifactBindings,
   fetchInitiatives,
   fetchOwnershipAssignments,
@@ -45,11 +46,23 @@ import {
   fetchLlmExecutionProfiles,
   fetchPipelines,
   fetchPipelineDetail,
+  fetchAccessStateDiffCount,
+  fetchAccountsForState,
+  fetchAccountIncomingDeltaItems,
+  fetchAccountOutgoingPlanItems,
+  fetchAccountStateDiffCount,
 } from "../api/platformClient";
 import { dispatchPipelineAction } from "./pipelineActionDispatch";
 import type { PipelineActionMsg } from "./pipelineActionDispatch";
+import {
+  closeCurrentPreviewIfUnpinned,
+  getAurelionColumn,
+  handleDrillDownFrom,
+  markPanelAsPreview,
+  rememberAurelionColumn,
+} from "./panelLifecycle";
 import { INVENTORY_CATEGORIES } from "../integrations/inventory/inventoryCategories";
-import type { InventoryCategoryFetcherName } from "../integrations/inventory/inventoryCategories";
+import type { InventoryCategoryFetcherName, AccessStateTab, AccountStateTab } from "../integrations/inventory/inventoryCategories";
 import { ACCESS_ANALYSIS_CATEGORIES } from "../integrations/accessAnalysis/accessAnalysisCategories";
 import type { AccessAnalysisCategoryFetcherName } from "../integrations/accessAnalysis/accessAnalysisCategories";
 
@@ -59,9 +72,14 @@ const INVENTORY_FETCHERS: Record<InventoryCategoryFetcherName, InventoryFetcher>
   fetchCustomers: () => fetchCustomers(),
   fetchSubjects: () => fetchSubjects(),
   fetchAccounts: () => fetchAccounts(),
+  fetchAccountsForState: () => fetchAccountsForState(),
+  fetchAccountIncomingDeltaItems: async () => { const r = await fetchAccountIncomingDeltaItems(); return r.items; },
+  fetchAccountOutgoingPlanItems: async () => { const r = await fetchAccountOutgoingPlanItems(); return r.items; },
   fetchResources: () => fetchResources(),
-  fetchAccessArtifacts: () => fetchAccessArtifacts(),
-  fetchAccessFacts: () => fetchAccessFacts(),
+  // Access State tabs — used directly in the accessState case, not via this map
+  fetchAccessFactsForState: () => fetchAccessFactsForState(),
+  fetchIncomingDeltaItems: async () => { const r = await fetchIncomingDeltaItems(); return r.items; },
+  fetchOutgoingPlanItems: async () => { const r = await fetchOutgoingPlanItems(); return r.items; },
   fetchArtifactBindings: () => fetchArtifactBindings(),
   fetchInitiatives: () => fetchInitiatives(),
   fetchOwnershipAssignments: () => fetchOwnershipAssignments(),
@@ -87,6 +105,9 @@ const ACCESS_ANALYSIS_FETCHERS: Record<AccessAnalysisCategoryFetcherName, Access
 };
 import { buildApplicationRows, applicationColumns, buildConnectorSection, buildEditConfig } from "./renderers/applicationRenderer";
 import { buildInventoryRows, inventoryColumns } from "./renderers/inventoryListRenderer";
+import { buildAccessStateRows, accessStateColumns } from "./renderers/accessStateListRenderer";
+import { buildAccountStateRows, accountStateColumns } from "./renderers/accountStateListRenderer";
+import type { AccessStateTabKey, AccountStateTabKey } from "./types";
 import { buildAccessAnalysisRows, accessAnalysisColumns } from "./renderers/accessAnalysisListRenderer";
 import { buildEventsRows, eventsColumns } from "./renderers/eventsListRenderer";
 import { buildLogsRows, logsColumns } from "./renderers/logsListRenderer";
@@ -149,14 +170,25 @@ export class DetailPanelController implements vscode.Disposable {
     this.extensionUri = options.extensionUri;
   }
 
-  openOrReveal(args: PanelOpenArgs): void {
+  openOrReveal(args: PanelOpenArgs, opts?: { drillDown?: boolean; fromPanel?: vscode.WebviewPanel }): void {
     const key = `${args.kind}:${args.ctxKey}`;
     const existing = this.panels.get(key);
 
     if (existing) {
-      existing.panel.reveal(existing.panel.viewColumn ?? vscode.ViewColumn.Beside);
+      existing.panel.reveal(existing.panel.viewColumn ?? getAurelionColumn());
       void this._refresh(key, args);
       return;
+    }
+
+    // Preview-tab behavior:
+    //  - drillDown from current preview: promote parent, new panel = preview
+    //  - drill-down from already-promoted parent (sibling navigation): close
+    //    previous sibling preview, new panel = preview
+    //  - non-drill-down (treeview/command): always close current preview
+    if (opts?.drillDown === true) {
+      handleDrillDownFrom(opts.fromPanel);
+    } else {
+      closeCurrentPreviewIfUnpinned();
     }
 
     // Enforce cap
@@ -167,9 +199,11 @@ export class DetailPanelController implements vscode.Disposable {
     const panel = vscode.window.createWebviewPanel(
       "aurelionDetail",
       this._titleForArgs(args),
-      vscode.ViewColumn.Beside,
+      getAurelionColumn(),
       { enableScripts: true, retainContextWhenHidden: true },
     );
+    rememberAurelionColumn(panel.viewColumn);
+    markPanelAsPreview(panel);
 
     const nonce = this._nonce();
     const scriptUri = panel.webview.asWebviewUri(
@@ -201,7 +235,7 @@ export class DetailPanelController implements vscode.Disposable {
 
     this.panels.set(key, entry);
 
-    entry.messageDisposable = panel.webview.onDidReceiveMessage(async (msg: { type: string; appId?: string; payload?: Record<string, unknown>; id?: string; verb?: string; runId?: string; section?: string; stepName?: string; stepId?: string | null; message?: string }) => {
+    entry.messageDisposable = panel.webview.onDidReceiveMessage(async (msg: { type: string; appId?: string; payload?: Record<string, unknown>; id?: string; verb?: string; runId?: string; section?: string; stepName?: string; stepId?: string | null; message?: string; tab?: string }) => {
       if (msg.type === "dagWarning" && typeof msg.message === "string") {
         this.extensionChannel.warn(`[DAG] ${msg.message}`);
         return;
@@ -273,6 +307,19 @@ export class DetailPanelController implements vscode.Disposable {
           void entry.panel.webview.postMessage({ type: "error", message: String(err) });
         }
       }
+      if (msg.type === "switch-tab" && typeof msg.tab === "string" && (args.kind === "accessState" || args.kind === "accountState")) {
+        const validTabs: string[] = ["list", "incoming", "outgoing"];
+        if (!validTabs.includes(msg.tab)) { return; }
+        const currentEntry = this.panels.get(key);
+        if (!currentEntry) { return; }
+        const newArgs: PanelOpenArgs = args.kind === "accessState"
+          ? { ...args, activeTab: msg.tab as AccessStateTabKey }
+          : { ...args, activeTab: msg.tab as AccountStateTabKey };
+        this._argsCache.set(key, newArgs);
+        currentEntry.panel.title = this._titleForArgs(newArgs);
+        void this._refresh(key, newArgs);
+        return;
+      }
       if (msg.type === "stepClick" && typeof msg.id === "string" && msg.id.length > 0 && msg.section === "steps" && args.kind === "pipelineRunDetail") {
         this.openOrReveal({
           kind: "pipelineStepDetail",
@@ -280,7 +327,7 @@ export class DetailPanelController implements vscode.Disposable {
           runId: args.runId,
           stepName: msg.id,
           pipelineName: args.pipelineName,
-        });
+        }, { drillDown: true, fromPanel: entry.panel });
         return;
       }
       if (msg.type === "itemClick" && msg.id) {
@@ -294,7 +341,7 @@ export class DetailPanelController implements vscode.Disposable {
             runId: msg.id,
             pipelineName: String(run["pipeline_name"] ?? msg.id.slice(0, 8)),
             status: run["status"] as PipelineRunStatus | undefined,
-          });
+          }, { drillDown: true, fromPanel: entry.panel });
           return;
         }
         if (args.kind === "pipelineDefinitions") {
@@ -302,7 +349,7 @@ export class DetailPanelController implements vscode.Disposable {
             kind: "pipelineDefinitionDetail",
             ctxKey: `pipeline-def:${msg.id}`,
             name: msg.id,
-          });
+          }, { drillDown: true, fromPanel: entry.panel });
           return;
         }
         const items = this._itemCache.get(key) ?? [];
@@ -322,7 +369,7 @@ export class DetailPanelController implements vscode.Disposable {
           itemId: msg.id,
           label,
           item,
-        });
+        }, { drillDown: true, fromPanel: entry.panel });
       }
     });
 
@@ -403,6 +450,8 @@ export class DetailPanelController implements vscode.Disposable {
     switch (args.kind) {
       case "application": return `Application: ${args.appName}`;
       case "inventory": return args.label;
+      case "accessState": return `Access State · ${args.activeTab}`;
+      case "accountState": return `Accounts · ${args.activeTab}`;
       case "events": return `Events · ${args.domain}`;
       case "logs": return `Logs · ${args.minLevel}+`;
       case "accessAnalysis": return args.label;
@@ -498,7 +547,17 @@ export class DetailPanelController implements vscode.Disposable {
     void entry.panel.webview.postMessage({ type: "loading" });
 
     try {
-      const { rows, columns, filters, filterByTs, extraSections, editConfig, dag, dagIsRunDag } = await this._fetchAndBuild(args);
+      const { rows, columns, filters, filterByTs, extraSections, editConfig, dag, dagIsRunDag, accessStateTabs, accessStateActiveTab, accessStateCounts } = await this._fetchAndBuild(args);
+      if (accessStateTabs !== undefined && accessStateActiveTab !== undefined) {
+        void entry.panel.webview.postMessage({
+          type: "set-tabs",
+          tabs: accessStateTabs,
+          activeTab: accessStateActiveTab,
+          counts: accessStateCounts,
+        });
+      } else if (args.kind !== "accessState" && args.kind !== "accountState") {
+        void entry.panel.webview.postMessage({ type: "clear-tabs" });
+      }
       void entry.panel.webview.postMessage({ type: "update", columns, rows, filters, filterByTs, extraSections, editConfig, dag, dagIsRunDag });
     } catch (err) {
       this.extensionChannel.error(`DetailPanelController: fetch error for ${key}`, String(err));
@@ -519,7 +578,7 @@ export class DetailPanelController implements vscode.Disposable {
 
   private async _fetchAndBuild(
     args: PanelOpenArgs,
-  ): Promise<{ rows: PanelRow[]; columns: string[]; filters?: Array<{ label: string; columnIndex: number }>; filterByTs?: boolean; extraSections?: Section[]; editConfig?: EditConfig; dag?: DagDescriptor; dagIsRunDag?: boolean }> {
+  ): Promise<{ rows: PanelRow[]; columns: string[]; filters?: Array<{ label: string; columnIndex: number }>; filterByTs?: boolean; extraSections?: Section[]; editConfig?: EditConfig; dag?: DagDescriptor; dagIsRunDag?: boolean; accessStateTabs?: AccessStateTab[]; accessStateActiveTab?: AccessStateTabKey | AccountStateTabKey; accessStateCounts?: { incoming: number; outgoing: number } }> {
     switch (args.kind) {
       case "application": {
         const [apps, connectors] = await Promise.all([
@@ -573,6 +632,90 @@ export class DetailPanelController implements vscode.Disposable {
           rows: buildInventoryRows(args.categoryKey, items),
           columns: cols,
           filters: nameFilters.length > 0 ? nameFilters : undefined,
+        };
+      }
+
+      case "accessState": {
+        const tab = args.activeTab as AccessStateTabKey;
+
+        const dataFetch = (async (): Promise<unknown[]> => {
+          switch (tab) {
+            case "list":
+              return fetchAccessFactsForState({ limit: 50 });
+            case "incoming": {
+              const result = await fetchIncomingDeltaItems({ status: "pending", limit: 50 });
+              return result.items;
+            }
+            case "outgoing": {
+              const result = await fetchOutgoingPlanItems({
+                execution_status: "proposed,executing",
+                plan_status: "active",
+                limit: 50,
+              });
+              return result.items;
+            }
+          }
+        })();
+
+        const countsFetch = fetchAccessStateDiffCount().catch(() => ({
+          incoming: 0,
+          outgoing: 0,
+          total: 0,
+        }));
+
+        const [items, counts] = await Promise.all([dataFetch, countsFetch]);
+
+        const accessStateCatDef = INVENTORY_CATEGORIES.find((c) => c.key === "accessState");
+        const tabs: AccessStateTab[] = accessStateCatDef?.tabs ?? [];
+
+        return {
+          rows: buildAccessStateRows(tab, items),
+          columns: accessStateColumns(tab),
+          accessStateTabs: tabs,
+          accessStateActiveTab: tab,
+          accessStateCounts: { incoming: counts.incoming, outgoing: counts.outgoing },
+        };
+      }
+
+      case "accountState": {
+        const tab = args.activeTab as AccountStateTabKey;
+
+        const dataFetch = (async (): Promise<unknown[]> => {
+          switch (tab) {
+            case "list":
+              return fetchAccountsForState({ limit: 50 });
+            case "incoming": {
+              const result = await fetchAccountIncomingDeltaItems({ status: "pending", limit: 50 });
+              return result.items;
+            }
+            case "outgoing": {
+              const result = await fetchAccountOutgoingPlanItems({
+                execution_status: "proposed,executing",
+                plan_status: "active",
+                limit: 50,
+              });
+              return result.items;
+            }
+          }
+        })();
+
+        const countsFetch = fetchAccountStateDiffCount().catch(() => ({
+          incoming: 0,
+          outgoing: 0,
+          total: 0,
+        }));
+
+        const [items, counts] = await Promise.all([dataFetch, countsFetch]);
+
+        const accountStateCatDef = INVENTORY_CATEGORIES.find((c) => c.key === "accountState");
+        const tabs: AccountStateTab[] = accountStateCatDef?.tabs ?? [];
+
+        return {
+          rows: buildAccountStateRows(tab, items),
+          columns: accountStateColumns(tab),
+          accessStateTabs: tabs as unknown as AccessStateTab[],
+          accessStateActiveTab: tab,
+          accessStateCounts: { incoming: counts.incoming, outgoing: counts.outgoing },
         };
       }
 

@@ -24,10 +24,10 @@ function makeEvent(eventType: string, ts: string): PlatformEventEntry {
 describe("buildEventsRows", () => {
   const events: PlatformEventEntry[] = [
     makeEvent("inventory.customer.created", "2024-06-01T10:00:00Z"),
-    makeEvent("reconciliation.run.started", "2024-06-01T11:00:00Z"),
+    makeEvent("inventory_reconcile.run.started", "2024-06-01T11:00:00Z"),
     makeEvent("audit.user.login", "2024-06-01T09:00:00Z"),
     makeEvent("inventory.account.updated", "2024-06-01T08:00:00Z"),
-    makeEvent("provisioning.task.done", "2024-06-01T07:00:00Z"),
+    makeEvent("access_apply.task.done", "2024-06-01T07:00:00Z"),
   ];
 
   it("filters to only inventory domain events", () => {

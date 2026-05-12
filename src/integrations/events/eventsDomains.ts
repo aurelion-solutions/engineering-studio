@@ -6,8 +6,9 @@
 export type EventDomain = "inventory" | "capabilities" | "platform";
 
 const CAPABILITY_NAMESPACES = [
-  "reconciliation",
-  "provisioning",
+  "inventory_reconcile",
+  "inventory_sync",
+  "access_apply",
   "ingest",
   "effective_grants",
   "eas",

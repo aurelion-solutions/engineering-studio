@@ -784,11 +784,90 @@ export type AccessFactFromApi = {
   subject_id: string;
   account_id: string | null;
   resource_id: string;
+  action_slug: string;
   action: ActionKind;
   effect: AccessFactEffect;
+  is_active: boolean;
   valid_from: string;
   valid_until: string | null;
   created_at: string;
+  subject_display: string | null;
+  account_display: string | null;
+  resource_display: string | null;
+  application_code: string | null;
+  application_name: string | null;
+};
+
+// ─── Inventory Reconcile: DeltaItem ─────────────────────────────────────────
+
+/** Single item from GET /api/v0/inventory-reconciles/delta-items */
+export type DeltaItemFromApi = {
+  id: string;
+  run_id: string;
+  entity_type: string;
+  operation: string;
+  status: string;
+  subject_id: string | null;
+  account_id: string | null;
+  resource_id: string | null;
+  application_id: string | null;
+  created_at: string;
+  subject_display: string | null;
+  account_display: string | null;
+  resource_display: string | null;
+  application_code: string | null;
+  application_name: string | null;
+  change_summary: string | null;
+  reconciliation_run_id: string | null;
+};
+
+/** Response shape from GET /api/v0/inventory-reconciles/delta-items */
+export type DeltaItemsResponseFromApi = {
+  items: DeltaItemFromApi[];
+  next_cursor: string | null;
+};
+
+/** Response shape from GET /api/v0/inventory-reconciles/delta-items/count */
+export type DeltaItemCountFromApi = {
+  count: number;
+};
+
+// ─── Access Plan: PlanItem ───────────────────────────────────────────────────
+
+/** Single item from GET /api/v0/plans/items */
+export type PlanItemFromApi = {
+  id: string;
+  plan_id: string;
+  kind: string;
+  subject_ref: string | null;
+  subject_type: string | null;
+  application: string | null;
+  target_descriptor: Record<string, unknown> | null;
+  execution_status: string;
+  created_at: string;
+  subject_display: string | null;
+  target_display: string | null;
+  application_code: string | null;
+  application_name: string | null;
+  change_summary: string | null;
+};
+
+/** Response shape from GET /api/v0/plans/items */
+export type PlanItemsResponseFromApi = {
+  items: PlanItemFromApi[];
+  total: number;
+};
+
+/** Response shape from GET /api/v0/plans/items/count */
+export type PlanItemCountFromApi = {
+  count: number;
+};
+
+/** Combined diff count for Access State badge */
+export type AccessStateDiffCount = {
+  incoming: number;
+  outgoing: number;
+  total: number;
 };
 
 // ─── Orchestrator: PipelineRun ────────────────────────────────────────────────

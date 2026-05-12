@@ -6,6 +6,12 @@ import {
   TriggerPipelineRunError,
 } from "../api/platformClient";
 import { parseArgsJson } from "../integrations/pipelines/triggerForm/triggerFormModel";
+import {
+  closeCurrentPreviewIfUnpinned,
+  getAurelionColumn,
+  markPanelAsPreview,
+  rememberAurelionColumn,
+} from "./panelLifecycle";
 
 type TriggerRunPanelControllerOptions = {
   extensionChannel: vscode.LogOutputChannel;
@@ -31,10 +37,15 @@ export class TriggerRunPanelController implements vscode.Disposable {
       return;
     }
 
+    // Preview-tab behavior: replace the current preview unless the user pinned
+    // it. Drill-down parents (which were promoted via releaseCurrentPreview)
+    // stay open.
+    closeCurrentPreviewIfUnpinned();
+
     const panel = vscode.window.createWebviewPanel(
       "aurelion.triggerRunPanel",
       "Aurelion: Trigger Pipeline Run",
-      vscode.ViewColumn.Beside,
+      getAurelionColumn(),
       {
         enableScripts: true,
         retainContextWhenHidden: true,
@@ -43,6 +54,8 @@ export class TriggerRunPanelController implements vscode.Disposable {
         ],
       },
     );
+    rememberAurelionColumn(panel.viewColumn);
+    markPanelAsPreview(panel);
 
     this.panel = panel;
 

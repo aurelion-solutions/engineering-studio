@@ -4,7 +4,7 @@
  */
 import type { PipelineStatusKey } from "../integrations/pipelines/pipelineStatusDefs";
 
-export type PanelContentKind = "application" | "inventory" | "events" | "logs" | "accessAnalysis" | "llmModel" | "llmModelsList" | "pipelineRuns" | "pipelineRunDetail" | "pipelineStepDetail" | "pipelineDefinitions" | "pipelineDefinitionDetail";
+export type PanelContentKind = "application" | "inventory" | "accessState" | "accountState" | "events" | "logs" | "accessAnalysis" | "llmModel" | "llmModelsList" | "pipelineRuns" | "pipelineRunDetail" | "pipelineStepDetail" | "pipelineDefinitions" | "pipelineDefinitionDetail";
 
 export type PanelRowAction = {
   verb: "cancel" | "retry";
@@ -42,9 +42,17 @@ export type EditConfig = {
   fields: EditableFieldDef[];
 };
 
+/** Active tab key for the Access State panel. */
+export type AccessStateTabKey = "list" | "incoming" | "outgoing";
+
+/** Active tab key for the Account State panel. */
+export type AccountStateTabKey = "list" | "incoming" | "outgoing";
+
 export type PanelOpenArgs =
   | { kind: "application"; ctxKey: string; appId: string; appName: string }
   | { kind: "inventory"; ctxKey: string; categoryKey: string; label: string }
+  | { kind: "accessState"; ctxKey: string; activeTab: AccessStateTabKey }
+  | { kind: "accountState"; ctxKey: string; activeTab: AccountStateTabKey }
   | { kind: "events"; ctxKey: string; domain: "inventory" | "capabilities" | "platform" }
   | { kind: "logs"; ctxKey: string; minLevel: "debug" | "info" | "warning" | "error" }
   | { kind: "accessAnalysis"; ctxKey: string; categoryKey: string; label: string }

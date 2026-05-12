@@ -213,6 +213,7 @@
   const saveBar = document.getElementById('save-bar');
   const saveBtn = document.getElementById('save-btn');
   const saveStatus = document.getElementById('save-status');
+  const tabBarEl = document.getElementById('tab-bar');
   let activeAppId = undefined;
   let originalEditValues = {};
 
@@ -499,6 +500,39 @@
 
   window.addEventListener('message', function (event) {
     const msg = event.data;
+
+    if (msg.type === 'set-tabs') {
+      if (!tabBarEl) { return; }
+      tabBarEl.innerHTML = '';
+      var tabs = msg.tabs || [];
+      var activeTab = msg.activeTab;
+      var counts = msg.counts || {};
+      tabs.forEach(function (tab) {
+        var btn = document.createElement('button');
+        btn.className = 'tab' + (tab.key === activeTab ? ' active' : '');
+        btn.dataset.tab = tab.key;
+        var count = counts[tab.key];
+        var countStr = (count !== undefined && count !== null) ? ' (' + count + ')' : '';
+        var span = document.createElement('span');
+        span.className = 'tab-count';
+        span.textContent = countStr;
+        btn.textContent = tab.label;
+        btn.appendChild(span);
+        btn.addEventListener('click', function () {
+          vscode.postMessage({ type: 'switch-tab', tab: btn.dataset.tab });
+        });
+        tabBarEl.appendChild(btn);
+      });
+      tabBarEl.style.display = 'flex';
+      return;
+    }
+
+    if (msg.type === 'clear-tabs') {
+      if (!tabBarEl) { return; }
+      tabBarEl.style.display = 'none';
+      tabBarEl.innerHTML = '';
+      return;
+    }
 
     if (msg.type === 'loading') {
       statusEl.textContent = 'Loading…';

@@ -95,7 +95,7 @@ const exampleDetail = {
   triggers: [{ type: "manual" }],
   args_schema: {},
   steps: [
-    { name: "step-1", engine: "reconciliation", action: "run" },
+    { name: "step-1", engine: "inventory_reconcile", action: "run" },
   ],
   content_hash: "abc123",
   source_path: "/pipelines/my-pipeline.yaml",

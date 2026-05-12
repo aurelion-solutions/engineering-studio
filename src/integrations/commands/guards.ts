@@ -75,6 +75,10 @@ export function isOpenDetailPanelArg(v: unknown): v is PanelOpenArgs {
     case "inventory":
     case "accessAnalysis":
       return typeof r["categoryKey"] === "string" && typeof r["label"] === "string";
+    case "accessState":
+      return ["list", "incoming", "outgoing"].includes(String(r["activeTab"]));
+    case "accountState":
+      return ["list", "incoming", "outgoing"].includes(String(r["activeTab"]));
     case "events":
       return (
         r["domain"] === "inventory" ||

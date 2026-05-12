@@ -37,7 +37,7 @@ export function buildInventoryRows(
     let desc = "";
     let ts = "";
 
-    if (catDef) {
+    if (catDef && catDef.columns !== undefined) {
       try { id = catDef.columns.id(row); } catch { id = ""; }
       try { name = catDef.columns.name(row); } catch { name = ""; }
       try { desc = catDef.columns.desc(row); } catch { desc = ""; }

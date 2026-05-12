@@ -74,6 +74,9 @@ import type {
   PipelineDetailFromApi,
   CreatePipelineRunRequest,
   CreatePipelineRunResponseFromApi,
+  DeltaItemsResponseFromApi,
+  PlanItemsResponseFromApi,
+  AccessStateDiffCount,
 } from "./types";
 import { parseSseStream } from "./sseParser";
 import type { SseParserOptions } from "./sseParser";
@@ -1711,6 +1714,179 @@ export async function fetchPipelineSchema(
     );
   }
   return res.json();
+}
+
+// ─── Access State: fetchers ───────────────────────────────────────────────────
+
+/**
+ * Fetches accounts for the Account State "List" tab.
+ * Thin wrapper over fetchAccounts.
+ */
+export async function fetchAccountsForState(params?: {
+  limit?: number;
+  application_id?: string;
+  status?: AccountStatus;
+  subject_id?: string;
+}): Promise<AccountFromApi[]> {
+  return fetchAccounts({ limit: 50, ...params });
+}
+
+/**
+ * Fetches pending incoming reconciliation delta items filtered to entity_type=account.
+ */
+export async function fetchAccountIncomingDeltaItems(params?: {
+  status?: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<DeltaItemsResponseFromApi> {
+  return fetchIncomingDeltaItems({
+    entity_type: "account",
+    status: params?.status ?? "pending",
+    limit: params?.limit ?? 50,
+    cursor: params?.cursor,
+  });
+}
+
+/**
+ * Fetches active outgoing plan items for account-related kinds.
+ */
+export async function fetchAccountOutgoingPlanItems(params?: {
+  execution_status?: string;
+  plan_status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PlanItemsResponseFromApi> {
+  return fetchOutgoingPlanItems({
+    execution_status: params?.execution_status ?? "proposed,executing",
+    plan_status: params?.plan_status ?? "active",
+    kind: "account_create,account_invite,account_activate,account_suspend,account_disable",
+    limit: params?.limit ?? 50,
+    offset: params?.offset,
+  });
+}
+
+/**
+ * Fetches combined diff count for the Account State badge.
+ * Calls incoming + outgoing count endpoints in parallel with account-specific filters.
+ */
+export async function fetchAccountStateDiffCount(): Promise<AccessStateDiffCount> {
+  const incomingUrl = `${getApiBaseUrl()}/api/v0/inventory-reconciles/delta-items/count?status=pending&entity_type=account`;
+  const outgoingUrl = `${getApiBaseUrl()}/api/v0/plans/items/count?execution_status=proposed,executing&plan_status=active&kind=account_create,account_invite,account_activate,account_suspend,account_disable`;
+  const [incomingRes, outgoingRes] = await Promise.all([
+    fetch(incomingUrl),
+    fetch(outgoingUrl),
+  ]);
+  const incomingCount = incomingRes.ok
+    ? ((await incomingRes.json()) as { count: number }).count
+    : 0;
+  const outgoingCount = outgoingRes.ok
+    ? ((await outgoingRes.json()) as { count: number }).count
+    : 0;
+  return { incoming: incomingCount, outgoing: outgoingCount, total: incomingCount + outgoingCount };
+}
+
+/**
+ * Fetches access facts for the Access State "List" tab.
+ * Thin wrapper over fetchAccessFacts with a fixed limit.
+ */
+export async function fetchAccessFactsForState(params?: {
+  subject_id?: string;
+  resource_id?: string;
+  account_id?: string;
+  action?: string;
+  effect?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AccessFactFromApi[]> {
+  return fetchAccessFacts({ limit: 50, ...params });
+}
+
+/**
+ * Fetches pending incoming reconciliation delta items.
+ * Endpoint: GET /api/v0/inventory-reconciles/delta-items
+ */
+export async function fetchIncomingDeltaItems(params?: {
+  status?: string;
+  application_id?: string;
+  entity_type?: string;
+  subject_id?: string;
+  account_id?: string;
+  resource_id?: string;
+  operation?: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<DeltaItemsResponseFromApi> {
+  const search = new URLSearchParams();
+  search.set("status", params?.status ?? "pending");
+  search.set("limit", String(params?.limit ?? 50));
+  if (params?.application_id !== undefined) { search.set("application_id", params.application_id); }
+  if (params?.entity_type !== undefined) { search.set("entity_type", params.entity_type); }
+  if (params?.subject_id !== undefined) { search.set("subject_id", params.subject_id); }
+  if (params?.account_id !== undefined) { search.set("account_id", params.account_id); }
+  if (params?.resource_id !== undefined) { search.set("resource_id", params.resource_id); }
+  if (params?.operation !== undefined) { search.set("operation", params.operation); }
+  if (params?.cursor !== undefined && params.cursor !== "") { search.set("cursor", params.cursor); }
+  const url = `${getApiBaseUrl()}/api/v0/inventory-reconciles/delta-items?${search.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Incoming delta items request failed (${res.status}): ${text || res.statusText}`);
+  }
+  return res.json() as Promise<DeltaItemsResponseFromApi>;
+}
+
+/**
+ * Fetches active outgoing plan items (proposed + executing).
+ * Endpoint: GET /api/v0/plans/items
+ */
+export async function fetchOutgoingPlanItems(params?: {
+  execution_status?: string;
+  plan_status?: string;
+  kind?: string;
+  application?: string;
+  plan_id?: string;
+  subject_ref?: string;
+  subject_type?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PlanItemsResponseFromApi> {
+  const search = new URLSearchParams();
+  search.set("execution_status", params?.execution_status ?? "proposed,executing");
+  search.set("plan_status", params?.plan_status ?? "active");
+  search.set("limit", String(params?.limit ?? 50));
+  if (params?.kind !== undefined) { search.set("kind", params.kind); }
+  if (params?.application !== undefined) { search.set("application", params.application); }
+  if (params?.plan_id !== undefined) { search.set("plan_id", params.plan_id); }
+  if (params?.subject_ref !== undefined) { search.set("subject_ref", params.subject_ref); }
+  if (params?.subject_type !== undefined) { search.set("subject_type", params.subject_type); }
+  if (params?.offset !== undefined) { search.set("offset", String(params.offset)); }
+  const url = `${getApiBaseUrl()}/api/v0/plans/items?${search.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Outgoing plan items request failed (${res.status}): ${text || res.statusText}`);
+  }
+  return res.json() as Promise<PlanItemsResponseFromApi>;
+}
+
+/**
+ * Fetches combined diff count for the Access State badge.
+ * Calls incoming + outgoing count endpoints in parallel.
+ */
+export async function fetchAccessStateDiffCount(): Promise<AccessStateDiffCount> {
+  const incomingUrl = `${getApiBaseUrl()}/api/v0/inventory-reconciles/delta-items/count?status=pending`;
+  const outgoingUrl = `${getApiBaseUrl()}/api/v0/plans/items/count?execution_status=proposed,executing&plan_status=active`;
+  const [incomingRes, outgoingRes] = await Promise.all([
+    fetch(incomingUrl),
+    fetch(outgoingUrl),
+  ]);
+  const incomingCount = incomingRes.ok
+    ? ((await incomingRes.json()) as { count: number }).count
+    : 0;
+  const outgoingCount = outgoingRes.ok
+    ? ((await outgoingRes.json()) as { count: number }).count
+    : 0;
+  return { incoming: incomingCount, outgoing: outgoingCount, total: incomingCount + outgoingCount };
 }
 
 export async function triggerPipelineRun(

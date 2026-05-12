@@ -4,7 +4,68 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.9.0] - 2026-05-13
+
+### Changed
+
+- **Application shown by full name in all diff panels.** All six tabs across Access State and Account State now display `application_name` (e.g. "GitHub Enterprise") instead of the short code ("GHE"). Falls back to `application_code` when `application_name` is null.
+  - **Column order** — Application column moved to position 0 (leftmost) in every tab where it appears:
+    - Access State List: **Application** · Subject · Account · Resource · Action · Effect · Active
+    - Access State Incoming: **Application** · Op · Subject · Target · Change · Time
+    - Access State Outgoing: **Application** · Kind · Status · Subject · Target · Change · Time
+    - Account State List: **Application** · Username · Status · MFA · Privileged · Subject · Updated
+    - Account State Incoming: **Application** · Op · Account/Target · Change · Time
+    - Account State Outgoing: **Application** · Kind · Status · Subject · Target · Change · Time
+  - `api/types.ts`: `AccessFactFromApi`, `DeltaItemFromApi`, `PlanItemFromApi` gain `application_name: string | null`.
+  - `inventoryCategories.ts`: `richHeaders` + `buildRichRow` builders updated for all six tabs.
+  - `accessStateListRenderer.ts`, `accountStateListRenderer.ts`: fallback column headers updated to match.
+
+### Added
+
+- **Accounts — multi-tab diff view (List / Incoming / Outgoing).** Replaced the flat "Accounts" inventory node with an `accountState` multi-tab panel mirroring the Access State pattern.
+  - **List** tab: Username · Application · Status (badge: active/suspended/disabled/invited) · MFA (●/○) · Privileged (●/○) · Subject (display or short UUID + tooltip) · Updated. Fetches `GET /api/v0/accounts`.
+  - **Incoming** tab: Op (glyph + CSS class) · Account/Target (`account_display` → short UUID + tooltip) · Change (`change_summary`) · App · Time. Fetches `GET /api/v0/inventory-reconciles/delta-items?entity_type=account&status=pending`.
+  - **Outgoing** tab: Kind (abbreviated: `account_create` → `+account`, `account_invite` → `+invite`, `account_activate` → `↻activate`, `account_suspend` → `⏸suspend`, `account_disable` → `⊘account`) · Status (exec CSS class) · Subject · Target · Change · App · Time. Fetches `GET /api/v0/plans/items?kind=account_create,account_invite,account_activate,account_suspend,account_disable&execution_status=proposed,executing&plan_status=active`.
+  - Tree node badge shows `"N diff"` count (account incoming + outgoing) via `fetchAccountStateDiffCount()`.
+  - `abbreviateKind` in `inventoryCategories.ts` extended with `account_invite`, `account_activate`, `account_suspend` entries.
+  - New API fetchers: `fetchAccountsForState`, `fetchAccountIncomingDeltaItems`, `fetchAccountOutgoingPlanItems`, `fetchAccountStateDiffCount`.
+  - New renderer: `accountStateListRenderer.ts` (`buildAccountStateRows`, `buildAccountStateRichRows`, `accountStateColumns`, `ACCOUNT_STATE_TABS`).
+  - `PanelContentKind` + `PanelOpenArgs` extended with `accountState` variant; `AccountStateTabKey` type added.
+  - `guards.ts` — `case "accountState"` added to `isOpenDetailPanelArg`.
+  - `DetailPanelController` — `case "accountState"` in `_fetchAndBuild`; `switch-tab` handler generalised for both `accessState` and `accountState`; `clear-tabs` condition updated.
+  - 548/549 tests pass (1 skipped, 0 fail). `tsc` + lint clean.
+
+### Changed
+
+- **Access State panel — new display columns (Op · Subject · Target · Change · App · Time scheme).**
+  - **Incoming** tab: Op (glyph + operation, coloured by CSS class), Subject (`subject_display` → `account_display` → `short(UUID)`), Target (`resource_display` → short UUID), Change (`change_summary`), App (`application_code`), Time (HH:mm:ss today / MM-DD HH:mm older).
+  - **Outgoing** tab: Kind (abbreviated: `account_disable` → `⊘account`, `grant_role` → `+role`, etc. + tooltip with full kind), Status (`execution_status` with CSS class), Subject (`subject_display` → short UUID), Target (`target_display`), Change (`change_summary`), App (`application_code`), Time.
+  - **List** tab: Subject (`subject_display` → short UUID), Account (`account_display` → short UUID), Resource (`resource_display` → short UUID), Action (`action_slug`), Effect (badge `allow`/`deny`), App (`application_code`), Active (● / ○).
+  - Short UUIDs carry full-UUID tooltip; Op/Status cells carry `cssClass` metadata; Effect cell carries `badge-effect-allow` / `badge-effect-deny` class.
+- **`api/types.ts`** — added display fields to three types:
+  - `DeltaItemFromApi`: `subject_display`, `account_display`, `resource_display`, `application_code`, `change_summary`, `reconciliation_run_id` (all `string | null`).
+  - `PlanItemFromApi`: `subject_ref`, `subject_type`, `subject_display`, `target_display`, `application_code`, `change_summary`.
+  - `AccessFactFromApi`: `action_slug`, `is_active`, `subject_display`, `account_display`, `resource_display`, `application_code`.
+- **`inventoryCategories.ts`** — `AccessStateTab` gains `richHeaders: string[]` and `buildRichRow: AccessStateRichRowBuilder`; `RichCell` type exported (`{ text, cssClass?, tooltip? }`). Three tab definitions updated with O(1) formatters for time, op glyph, kind abbreviation, effect badge.
+- **`accessStateListRenderer.ts`** — `accessStateColumns()` now reads `richHeaders` from tab definition; `buildAccessStateRows()` delegates to `buildRichRow` and encodes `cssClass`/`tooltip` as JSON in `cell.extra`; new `buildAccessStateRichRows()` export returns `RichCell[]` directly; `richCellToPanelCell()` helper exported.
+- **`panelHtml.ts`** — 12 new CSS classes: `.op-create`, `.op-revoke`, `.op-update`, `.op-reactivate`, `.op-noop`, `.exec-proposed`, `.exec-executing`, `.exec-done`, `.exec-failed`, `.badge-effect-allow`, `.badge-effect-deny`, `.uuid-short`.
+- Tests updated: `accessStateListRenderer.test.ts` rewritten (500 total tests, 499 pass, 0 fail).
+
+### Added
+
+- **Access State tab-bar UI** — `#tab-bar` element added to the detail panel webview (List / Incoming / Outgoing buttons with `(N)` count badges). Clicking a tab posts `switch-tab` message; controller updates `activeTab`, re-fetches table data, and sends `set-tabs` (with updated `activeTab`) + `update`. Panel title updates to reflect the active tab. `clear-tabs` is sent when the panel is reused for a non-accessState kind. Counts fetched in parallel with table data via `fetchAccessStateDiffCount`.
+- **Access State panel** — merged "Access Artifacts" and "Access Facts" tree nodes into a single "Access State" node with three tabs: List (access facts), Incoming (pending reconciliation delta items), Outgoing (proposed/executing plan items).
+- Three new API fetchers in `platformClient.ts`: `fetchAccessFactsForState`, `fetchIncomingDeltaItems` (GET `/api/v0/inventory-reconciles/delta-items`), `fetchOutgoingPlanItems` (GET `/api/v0/plans/items`).
+- `fetchAccessStateDiffCount()` — calls both count endpoints in parallel and returns `{ incoming, outgoing, total }`.
+- Access State badge on the Inventory tree node: shows `"N diff"` description when total > 0; refreshes on `aurelion.refreshInventory`; non-blocking (badge loads after tree render).
+- New renderer `accessStateListRenderer.ts` with `buildAccessStateRows(tab, data)` and `accessStateColumns(tab)` for all three tabs.
+- New types in `api/types.ts`: `DeltaItemFromApi`, `DeltaItemsResponseFromApi`, `DeltaItemCountFromApi`, `PlanItemFromApi`, `PlanItemsResponseFromApi`, `PlanItemCountFromApi`, `AccessStateDiffCount`.
+- `PanelContentKind` and `PanelOpenArgs` extended with `"accessState"` variant (`{ kind, ctxKey, activeTab }`).
+- 14 new tests: `inventoryCategories.test.ts` (updated for 14 categories + Access State tab assertions), `accessStateListRenderer.test.ts` (11 new tests covering all three tabs).
+
+### Removed
+
+- Inventory tree nodes "Access Artifacts" (key `accessArtifacts`) and "Access Facts" (key `accessFacts`) replaced by unified "Access State" node.
 
 ### Fixed
 

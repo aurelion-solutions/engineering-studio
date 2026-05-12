@@ -7,6 +7,12 @@ import {
   streamInference,
 } from "../api/platformClient";
 import type { LLMInferenceStreamChunk } from "../api/types";
+import {
+  closeCurrentPreviewIfUnpinned,
+  getAurelionColumn,
+  markPanelAsPreview,
+  rememberAurelionColumn,
+} from "./panelLifecycle";
 
 type InferencePanelControllerOptions = {
   extensionChannel: vscode.LogOutputChannel;
@@ -33,10 +39,15 @@ export class InferencePanelController implements vscode.Disposable {
       return;
     }
 
+    // Preview-tab behavior: replace the current preview unless the user pinned
+    // it. Drill-down parents (which were promoted via releaseCurrentPreview)
+    // stay open.
+    closeCurrentPreviewIfUnpinned();
+
     const panel = vscode.window.createWebviewPanel(
       "aurelion.inferencePanel",
       "Aurelion LLM Inference",
-      vscode.ViewColumn.Beside,
+      getAurelionColumn(),
       {
         enableScripts: true,
         retainContextWhenHidden: true,
@@ -45,6 +56,8 @@ export class InferencePanelController implements vscode.Disposable {
         ],
       },
     );
+    rememberAurelionColumn(panel.viewColumn);
+    markPanelAsPreview(panel);
 
     this.panel = panel;
 
