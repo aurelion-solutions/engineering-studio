@@ -85,8 +85,8 @@ const INVENTORY_FETCHERS: Record<InventoryCategoryFetcherName, InventoryFetcher>
   fetchOwnershipAssignments: () => fetchOwnershipAssignments(),
   fetchAccessUsageFacts: () => fetchAccessUsageFacts(),
   fetchThreatFacts: () => fetchThreatFacts(),
-  fetchPersons: () => fetchPersons(),
-  fetchEmployees: () => fetchEmployees(),
+  fetchPersons: () => fetchPersons({ limit: 1000, offset: 0 }).then((r) => r.items),
+  fetchEmployees: () => fetchEmployees({ limit: 1000, offset: 0 }).then((r) => r.items),
   fetchNHIs: () => fetchNHIs(),
   fetchEmployeeRecords: () => fetchEmployeeRecords(),
 };
@@ -611,8 +611,8 @@ export class DetailPanelController implements vscode.Disposable {
         let items = await fetcher();
 
         if (args.categoryKey === "employees") {
-          const persons = await fetchPersons().catch(() => []);
-          const personMap = new Map(persons.map((p) => [p.id, p]));
+          const personsEnvelope = await fetchPersons({ limit: 1000, offset: 0 }).catch(() => ({ items: [] as import("../api/types").PersonFromApi[], total: 0, limit: 1000, offset: 0 }));
+          const personMap = new Map(personsEnvelope.items.map((p) => [p.id, p]));
           items = (items as Record<string, unknown>[]).map((emp) => {
             const personId = emp["person_id"] as string | undefined;
             const person = personId ? personMap.get(personId) : undefined;
@@ -770,11 +770,13 @@ export class DetailPanelController implements vscode.Disposable {
 
         if (args.categoryKey === "employees" && typeof args.item["id"] === "string") {
           const personId = args.item["person_id"] as string | undefined;
-          const [attrs, persons] = await Promise.all([
+          const [attrs, personsEnvelope] = await Promise.all([
             fetchEmployeeAttributes(args.item["id"]).catch(() => []),
-            personId ? fetchPersons().catch(() => []) : Promise.resolve([]),
+            personId
+              ? fetchPersons({ limit: 1000, offset: 0 }).catch(() => ({ items: [] as import("../api/types").PersonFromApi[], total: 0, limit: 1000, offset: 0 }))
+              : Promise.resolve({ items: [] as import("../api/types").PersonFromApi[], total: 0, limit: 1000, offset: 0 }),
           ]);
-          const person = personId ? persons.find((p) => p.id === personId) : undefined;
+          const person = personId ? personsEnvelope.items.find((p) => p.id === personId) : undefined;
 
           if (person) {
             extraSections.push({

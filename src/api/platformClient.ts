@@ -29,14 +29,14 @@ import type {
   CustomerFromApi,
   CustomerPatchPayload,
   CustomerPlanTier,
-  EmployeeFromApi,
+  EmployeeListResponse,
   EmployeeRecordFromApi,
   LogBufferEvent,
   NHIFromApi,
   OwnershipAssignmentCreatePayload,
   OwnershipAssignmentFromApi,
   OwnershipKind,
-  PersonFromApi,
+  PersonListResponse,
   ResourceAttributeCreatePayload,
   ResourceAttributeFromApi,
   ResourceCreatePayload,
@@ -298,6 +298,8 @@ export async function removeCustomerAttribute(
 export async function fetchSubjects(params?: {
   kind?: SubjectKind;
   status?: SubjectStatus;
+  limit?: number;
+  offset?: number;
 }): Promise<SubjectFromApi[]> {
   const search = new URLSearchParams();
   if (params?.kind !== undefined) {
@@ -306,8 +308,9 @@ export async function fetchSubjects(params?: {
   if (params?.status !== undefined) {
     search.set("status", params.status);
   }
-  const qs = search.toString() ? `?${search.toString()}` : "";
-  const url = `${getApiBaseUrl()}/api/v0/subjects${qs}`;
+  search.set("limit", String(params?.limit ?? 1000));
+  search.set("offset", String(params?.offset ?? 0));
+  const url = `${getApiBaseUrl()}/api/v0/subjects?${search.toString()}`;
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -315,7 +318,8 @@ export async function fetchSubjects(params?: {
       `Subjects request failed (${res.status}): ${text || res.statusText}`,
     );
   }
-  return res.json() as Promise<SubjectFromApi[]>;
+  const data = (await res.json()) as { items: SubjectFromApi[] };
+  return data.items;
 }
 
 export async function fetchSubject(id: string): Promise<SubjectFromApi> {
@@ -1101,15 +1105,11 @@ export async function fetchPlatformEvents(
 
 // ─── Person client methods ────────────────────────────────────────────────────
 
-export async function fetchPersons(params?: {
-  limit?: number;
-}): Promise<PersonFromApi[]> {
-  const search = new URLSearchParams();
-  if (params?.limit !== undefined) {
-    search.set("limit", String(params.limit));
-  }
-  const qs = search.toString() ? `?${search.toString()}` : "";
-  const url = `${getApiBaseUrl()}/api/v0/persons${qs}`;
+export async function fetchPersons(params: {
+  limit: number;
+  offset: number;
+}): Promise<PersonListResponse> {
+  const url = `${getApiBaseUrl()}/api/v0/persons?limit=${params.limit}&offset=${params.offset}`;
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -1117,11 +1117,7 @@ export async function fetchPersons(params?: {
       `Persons request failed (${res.status}): ${text || res.statusText}`,
     );
   }
-  const data: unknown = await res.json();
-  if (!Array.isArray(data)) {
-    throw new Error("Persons response is not a JSON array");
-  }
-  return data as PersonFromApi[];
+  return res.json() as Promise<PersonListResponse>;
 }
 
 export async function fetchPersonAttributes(
@@ -1155,15 +1151,11 @@ export async function fetchEmployeeAttributes(
 }
 
 
-export async function fetchEmployees(params?: {
-  limit?: number;
-}): Promise<EmployeeFromApi[]> {
-  const search = new URLSearchParams();
-  if (params?.limit !== undefined) {
-    search.set("limit", String(params.limit));
-  }
-  const qs = search.toString() ? `?${search.toString()}` : "";
-  const url = `${getApiBaseUrl()}/api/v0/employees${qs}`;
+export async function fetchEmployees(params: {
+  limit: number;
+  offset: number;
+}): Promise<EmployeeListResponse> {
+  const url = `${getApiBaseUrl()}/api/v0/employees?limit=${params.limit}&offset=${params.offset}`;
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -1171,11 +1163,7 @@ export async function fetchEmployees(params?: {
       `Employees request failed (${res.status}): ${text || res.statusText}`,
     );
   }
-  const data: unknown = await res.json();
-  if (!Array.isArray(data)) {
-    throw new Error("Employees response is not a JSON array");
-  }
-  return data as EmployeeFromApi[];
+  return res.json() as Promise<EmployeeListResponse>;
 }
 
 // ─── NHI client methods ───────────────────────────────────────────────────────

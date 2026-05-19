@@ -16,7 +16,7 @@ Not in scope yet: application edit modal, password-policy placeholders, and the 
 
 | ID | Default | Purpose |
 |----|---------|---------|
-| `aurelion.engineeringStudio.apiBaseUrl` | `http://localhost:8000` | Platform API root (same role as `VITE_API_BASE_URL` in **aurelion-gui**). Changing it triggers an immediate tree refresh. |
+| `aurelion.engineeringStudio.apiBaseUrl` | `http://localhost:8000` | Platform API root. Changing it triggers an immediate tree refresh. |
 | `aurelion.engineeringStudio.logStreamPollMs` | `2500` | Polling interval in milliseconds for the log stream. Minimum 500ms. |
 | `aurelion.engineeringStudio.refreshIntervalMs` | `0` | Auto-refresh interval for the Applications tree. `0` disables auto-refresh (manual only). Minimum effective value is 5000ms. |
 
@@ -103,7 +103,7 @@ Publishing to the Marketplace requires a publisher account and the `publisher` f
 | Path | Purpose |
 |------|---------|
 | `src/extension.ts` | Activation, tree view + status bar + log streamer wiring, settings listener |
-| `src/api/` | HTTP client and DTOs aligned with **aurelion-gui** entities |
+| `src/api/` | HTTP client and DTOs for Platform API entities |
 | `src/integrations/applicationsTree.ts` | `ApplicationsTreeDataProvider` — root app nodes + connector children |
 | `src/integrations/applicationsMapper.ts` | Pure mapper: API response → `AppNode` |
 | `src/integrations/connectorInstancesMapper.ts` | Pure mapper: API response → `ConnectorNode` |
@@ -114,7 +114,7 @@ Publishing to the Marketplace requires a publisher account and the `publisher` f
 | `src/integrations/commands/` | Type-guards (`guards.ts`) for context-menu command arguments |
 | `out/` | Compiled JavaScript (not committed) |
 | `package.json` | Extension manifest: `contributes`, dependencies |
-| `media/icon.png` | Activity bar / marketplace icon (from **aurelion-gui** favicon) |
+| `media/icon.png` | Activity bar / marketplace icon |
 | `LICENSE` | Apache License 2.0 text (packaged as `LICENSE.txt` in the `.vsix`) |
 | `pnpm-lock.yaml` | Locked dependency versions (commit to the repository) |
 | `tsconfig.json` | Strict TypeScript, `outDir`: `out` |

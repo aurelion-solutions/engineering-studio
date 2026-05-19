@@ -1,8 +1,6 @@
 /**
- * Pure helpers ported verbatim from aurelion-gui/src/widgets/application-logs/lib/formatLogCard.ts.
+ * Pure helpers for formatting log card display.
  * No React dependency, no vscode dependency — plain TypeScript.
- *
- * Keep in sync with the GUI source mechanically: diff the two files when the GUI version changes.
  */
 
 import type { LogBufferEvent } from "../../api/types";

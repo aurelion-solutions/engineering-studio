@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.10.0] - 2026-05-19
+
+### Changed
+
+- **`fetchPersons` and `fetchEmployees` take `{limit, offset}` and return the kernel envelope (Phase 20 M-C).** Both fetchers now require `limit` and `offset` arguments and return `PersonListResponse` / `EmployeeListResponse` with `{items, total, limit, offset}`. All call sites in `DetailPanelController.ts` pass `{limit: 1000, offset: 0}` and consume `.items`. `EmployeeFromApi` gains `org_unit_id: string | null`.
+
 ## [0.9.0] - 2026-05-13
 
 ### Changed

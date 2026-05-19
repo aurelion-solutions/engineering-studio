@@ -2,7 +2,7 @@
   "name": "aurelion-engineering-studio",
   "displayName": "Aurelion Engineering Studio",
   "description": "Aurelion tools and integrations for VS Code.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "publisher": "aurelion",
   "license": "Apache-2.0",
   "icon": "media/logo.svg",
@@ -335,7 +335,7 @@
         "aurelion.engineeringStudio.apiBaseUrl": {
           "type": "string",
           "default": "http://localhost:8000",
-          "description": "Base URL for the Aurelion Platform API (same as VITE_API_BASE_URL in aurelion-gui)."
+          "description": "Base URL for the Aurelion Platform API."
         },
         "aurelion.engineeringStudio.logStreamPollMs": {
           "type": "number",

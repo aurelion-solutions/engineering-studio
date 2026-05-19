@@ -172,6 +172,14 @@ export type SubjectStatus =
   | "banned"
   | "deletion_requested";
 
+/** Paginated list response from GET /api/v0/subjects */
+export type SubjectListFromApi = {
+  items: SubjectFromApi[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 /** GET /api/v0/subjects / GET /api/v0/subjects/{id} */
 export type SubjectFromApi = {
   id: string;
@@ -453,6 +461,14 @@ export type PersonFromApi = {
   full_name: string;
 };
 
+/** GET /api/v0/persons — paginated envelope */
+export type PersonListResponse = {
+  items: PersonFromApi[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 /** GET /api/v0/persons/{id}/attributes */
 export type PersonAttributeFromApi = {
   id: string;
@@ -469,6 +485,15 @@ export type EmployeeFromApi = {
   person_id: string;
   is_locked: boolean;
   description: string | null;
+  org_unit_id: string | null;
+};
+
+/** GET /api/v0/employees — paginated envelope */
+export type EmployeeListResponse = {
+  items: EmployeeFromApi[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 /** GET /api/v0/employees/{id}/attributes */
